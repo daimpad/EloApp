@@ -1,12 +1,11 @@
 import { K_FACTOR, STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './src/elo.js';
+import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch } from './src/api.js';
 
 // ================= KONFIGURATION =================
 
 // API-URL wird aus config.js geladen (nicht im Repository enthalten).
 // Kopiere config.example.js → config.js und trage deine URL ein.
-const GOOGLE_SHEETS_API_URL = (typeof CONFIG !== 'undefined')
-    ? CONFIG.GOOGLE_SHEETS_API_URL
-    : '';
+initApi((typeof CONFIG !== 'undefined') ? CONFIG.GOOGLE_SHEETS_API_URL : '');
 
 // ================= GLOBALE VARIABLEN =================
 
@@ -134,30 +133,23 @@ async function loadPlayers() {
             updateRankings();
         }
 
-        const response = await fetch(`${GOOGLE_SHEETS_API_URL}?action=getPlayers`);
-        const data = await response.json();
+        players = await fetchPlayers();
 
-        if (data.success) {
-            players = data.players;
+        Object.keys(players).forEach(id => {
+            if (!players[id].doublesElo) {
+                players[id].doublesElo     = STARTING_ELO;
+                players[id].doublesMatches = 0;
+                players[id].doublesWins    = 0;
+                players[id].doublesLosses  = 0;
+            }
+        });
 
-            Object.keys(players).forEach(id => {
-                if (!players[id].doublesElo) {
-                    players[id].doublesElo = STARTING_ELO;
-                    players[id].doublesMatches = 0;
-                    players[id].doublesWins = 0;
-                    players[id].doublesLosses = 0;
-                }
-            });
-
-            localStorage.setItem('eloPlayers', JSON.stringify(players));
-            updatePlayerDropdowns();
-            updatePlayerList();
-            updateDoublesPlayerGrid();
-            updateRankings();
-            showSuccess("Spieler erfolgreich geladen!");
-        } else {
-            showError(`Fehler beim Laden der Spieler: ${data.message}`);
-        }
+        localStorage.setItem('eloPlayers', JSON.stringify(players));
+        updatePlayerDropdowns();
+        updatePlayerList();
+        updateDoublesPlayerGrid();
+        updateRankings();
+        showSuccess("Spieler erfolgreich geladen!");
     } catch (error) {
         console.error("Netzwerkfehler:", error);
         showError("Netzwerkfehler beim Laden der Spieler. Lokale Daten werden verwendet.");
@@ -179,19 +171,12 @@ async function loadMatches() {
             updateHistory();
         }
 
-        const response = await fetch(`${GOOGLE_SHEETS_API_URL}?action=getMatches`);
-        const data = await response.json();
-
-        if (data.success) {
-            matches = data.matches;
-            localStorage.setItem('eloMatches', JSON.stringify(matches));
-            recalculateStatsFromHistory();
-            updateHistory();
-            updateRankings();
-            showSuccess("Spielverlauf erfolgreich geladen!");
-        } else {
-            showError(`Fehler beim Laden des Spielverlaufs: ${data.message}`);
-        }
+        matches = await fetchMatches();
+        localStorage.setItem('eloMatches', JSON.stringify(matches));
+        recalculateStatsFromHistory();
+        updateHistory();
+        updateRankings();
+        showSuccess("Spielverlauf erfolgreich geladen!");
     } catch (error) {
         console.error("Netzwerkfehler:", error);
         showError("Netzwerkfehler beim Laden des Spielverlaufs. Lokale Daten werden verwendet.");
@@ -320,16 +305,10 @@ async function addPlayer() {
     toggleLoading(true);
 
     try {
-        const response = await fetch(`${GOOGLE_SHEETS_API_URL}?action=addPlayer&id=${playerId}&name=${encodeURIComponent(playerName)}&elo=${STARTING_ELO}&matches=0&wins=0&losses=0&doublesElo=${STARTING_ELO}&doublesMatches=0&doublesWins=0&doublesLosses=0`);
-        const data = await response.json();
-
-        if (data.success) {
-            showSuccess(`Spieler "${playerName}" wurde hinzugefügt!`);
-            document.getElementById('playerName').value = '';
-            showConfetti();
-        } else {
-            showError(`Fehler beim Speichern des Spielers: ${data.message}`);
-        }
+        await createPlayer(playerId, players[playerId]);
+        showSuccess(`Spieler "${playerName}" wurde hinzugefügt!`);
+        document.getElementById('playerName').value = '';
+        showConfetti();
     } catch (error) {
         console.error("Netzwerkfehler:", error);
         showError("Der Spieler wurde lokal gespeichert, konnte aber nicht mit Google Sheets synchronisiert werden.");
@@ -445,19 +424,13 @@ async function saveMatch(match, updatedPlayers) {
     try {
         for (const player of updatedPlayers) {
             const playerId = Object.keys(players).find(id => players[id] === player);
-            await fetch(`${GOOGLE_SHEETS_API_URL}?action=updatePlayer&id=${playerId}&elo=${player.elo}&matches=${player.matches}&wins=${player.wins}&losses=${player.losses}&doublesElo=${player.doublesElo}&doublesMatches=${player.doublesMatches}&doublesWins=${player.doublesWins}&doublesLosses=${player.doublesLosses}`);
+            await updatePlayer(playerId, player);
         }
 
-        const matchResponse = await fetch(`${GOOGLE_SHEETS_API_URL}?action=addMatch&date=${match.date}&type=${match.type}&winnerId=${match.winnerId}&loserId=${match.loserId}&winnerName=${encodeURIComponent(match.winnerName)}&loserName=${encodeURIComponent(match.loserName)}&eloChange=${match.eloChange}`);
-        const matchData = await matchResponse.json();
-
-        if (matchData.success) {
-            const gameType = match.type === 'singles' ? 'Einzel' : 'Doppel';
-            showSuccess(`🎉 ${gameType}-Match gespeichert! ${match.winnerName} gewinnt gegen ${match.loserName} (+${match.eloChange} Elo)`);
-            showConfetti();
-        } else {
-            showError(`Match lokal gespeichert, aber Fehler beim Speichern in Google Sheets: ${matchData.message}`);
-        }
+        await createMatch(match);
+        const gameType = match.type === 'singles' ? 'Einzel' : 'Doppel';
+        showSuccess(`🎉 ${gameType}-Match gespeichert! ${match.winnerName} gewinnt gegen ${match.loserName} (+${match.eloChange} Elo)`);
+        showConfetti();
     } catch (error) {
         console.error("Netzwerkfehler:", error);
         showError("Das Match wurde lokal gespeichert, konnte aber nicht mit Google Sheets synchronisiert werden.");
