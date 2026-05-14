@@ -14,9 +14,10 @@ import {
 
 // ================= KONFIGURATION =================
 
-// API-URL wird aus config.js geladen (nicht im Repository enthalten).
-// Kopiere config.example.js → config.js und trage deine URL ein.
-initApi((typeof CONFIG !== 'undefined') ? CONFIG.GOOGLE_SHEETS_API_URL : '');
+// Werte kommen aus config.js (nicht im Repository).
+// Kopiere config.example.js → config.js und trage deine Supabase-Daten ein.
+const _cfg = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+initApi(_cfg.SUPABASE_URL || '', _cfg.SUPABASE_ANON_KEY || '');
 
 // ================= GLOBAL (HTML onclick-Attribute) =================
 
@@ -42,8 +43,8 @@ window.addPlayer          = addPlayer;
 // ================= INITIALISIERUNG =================
 
 window.onload = async function() {
-    if (!(typeof CONFIG !== 'undefined' && CONFIG.GOOGLE_SHEETS_API_URL)) {
-        showError('Keine API-URL konfiguriert. Bitte config.js anlegen (siehe config.example.js).');
+    if (!_cfg.SUPABASE_URL || !_cfg.SUPABASE_ANON_KEY) {
+        showError('Supabase nicht konfiguriert. Bitte config.js anlegen (siehe config.example.js).');
     }
 
     document.getElementById('winning-team').addEventListener('change', updateTeamDisplay);

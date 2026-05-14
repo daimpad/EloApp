@@ -1,109 +1,164 @@
 /**
- * Alle Kommunikation mit dem Google Sheets Backend.
+ * Alle Kommunikation mit dem Supabase-Backend.
  *
  * Verwendung:
- *   import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch } from './src/api.js';
- *   initApi('https://your-backend-url');
+ *   import { initApi, fetchPlayers, fetchMatches,
+ *            createPlayer, updatePlayer, createMatch } from './src/api.js';
+ *   initApi('https://YOUR_PROJECT.supabase.co', 'YOUR_ANON_KEY');
  *
- * Jede Funktion:
- *   - gibt bei Erfolg die relevanten Daten zurück
- *   - wirft bei Netzwerkfehlern oder data.success === false einen Error
+ * Jede Funktion gibt bei Erfolg die Daten zurück oder wirft einen Error.
+ * Das Mapping zwischen App-Format (camelCase) und DB-Format (snake_case)
+ * passiert ausschließlich hier.
  */
 
-let baseUrl = '';
+let supabaseUrl = '';
+let supabaseKey = '';
 
-export function initApi(url) {
-    baseUrl = url;
+export function initApi(url, key) {
+    supabaseUrl = String(url || '').replace(/\/$/, '');
+    supabaseKey = String(key || '');
 }
 
-async function get(params) {
-    const query = new URLSearchParams({ ...params }).toString();
-    const response = await fetch(`${baseUrl}?${query}`);
+// ── HTTP-Hilfsfunktionen ───────────────────────────────────────────────────
+
+function headers(extra = {}) {
+    return {
+        apikey:        supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        ...extra,
+    };
+}
+
+async function request(path, options = {}) {
+    const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+        headers: headers(options.headers),
+        ...options,
+    });
+
     if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}: ${response.statusText}`);
     }
-    const data = await response.json();
-    if (!data.success) {
-        throw new Error(data.message || 'Unbekannter Fehler');
-    }
-    return data;
+
+    // 204 No Content bei Mutations (Prefer: return=minimal)
+    return response.status === 204 ? null : response.json();
 }
+
+// ── Typ-Mapping ────────────────────────────────────────────────────────────
+
+/** DB-Zeile → App-Spielerobjekt */
+function rowToPlayer(row) {
+    return {
+        name:           row.name,
+        elo:            row.elo,
+        matches:        row.matches,
+        wins:           row.wins,
+        losses:         row.losses,
+        doublesElo:     row.doubles_elo,
+        doublesMatches: row.doubles_matches,
+        doublesWins:    row.doubles_wins,
+        doublesLosses:  row.doubles_losses,
+    };
+}
+
+/** DB-Zeile → App-Match-Objekt */
+function rowToMatch(row) {
+    return {
+        date:       row.date,
+        type:       row.type,
+        winnerId:   row.winner_id,
+        loserId:    row.loser_id,
+        winnerName: row.winner_name,
+        loserName:  row.loser_name,
+        eloChange:  row.elo_change,
+    };
+}
+
+// ── Öffentliche API ────────────────────────────────────────────────────────
 
 /**
  * Alle Spieler laden.
- * @returns {Promise<Object>} players-Objekt { [id]: { name, elo, ... } }
+ * @returns {Promise<Object>} { [id]: { name, elo, ... } }
  */
 export async function fetchPlayers() {
-    const data = await get({ action: 'getPlayers' });
-    return data.players;
+    const rows = await request('players?select=*&order=created_at.asc');
+    return Object.fromEntries(rows.map(row => [row.id, rowToPlayer(row)]));
 }
 
 /**
  * Alle Matches laden.
- * @returns {Promise<Array>} matches-Array
+ * @returns {Promise<Array>}
  */
 export async function fetchMatches() {
-    const data = await get({ action: 'getMatches' });
-    return data.matches;
+    const rows = await request('matches?select=*&order=date.asc');
+    return rows.map(rowToMatch);
 }
 
 /**
  * Neuen Spieler anlegen.
  * @param {string} id
- * @param {{ name: string, elo: number, matches: number, wins: number, losses: number,
- *           doublesElo: number, doublesMatches: number, doublesWins: number, doublesLosses: number }} player
+ * @param {{ name, elo, matches, wins, losses,
+ *           doublesElo, doublesMatches, doublesWins, doublesLosses }} player
  */
 export async function createPlayer(id, player) {
-    await get({
-        action: 'addPlayer',
-        id,
-        name:          player.name,
-        elo:           player.elo,
-        matches:       player.matches,
-        wins:          player.wins,
-        losses:        player.losses,
-        doublesElo:    player.doublesElo,
-        doublesMatches: player.doublesMatches,
-        doublesWins:   player.doublesWins,
-        doublesLosses: player.doublesLosses,
+    await request('players', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+            id,
+            name:           player.name,
+            elo:            player.elo,
+            matches:        player.matches,
+            wins:           player.wins,
+            losses:         player.losses,
+            doubles_elo:    player.doublesElo,
+            doubles_matches: player.doublesMatches,
+            doubles_wins:   player.doublesWins,
+            doubles_losses: player.doublesLosses,
+        }),
     });
 }
 
 /**
  * Spieler-Statistiken aktualisieren.
  * @param {string} id
- * @param {{ elo: number, matches: number, wins: number, losses: number,
- *           doublesElo: number, doublesMatches: number, doublesWins: number, doublesLosses: number }} player
+ * @param {{ elo, matches, wins, losses,
+ *           doublesElo, doublesMatches, doublesWins, doublesLosses }} player
  */
 export async function updatePlayer(id, player) {
-    await get({
-        action: 'updatePlayer',
-        id,
-        elo:           player.elo,
-        matches:       player.matches,
-        wins:          player.wins,
-        losses:        player.losses,
-        doublesElo:    player.doublesElo,
-        doublesMatches: player.doublesMatches,
-        doublesWins:   player.doublesWins,
-        doublesLosses: player.doublesLosses,
+    await request(`players?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+            elo:            player.elo,
+            matches:        player.matches,
+            wins:           player.wins,
+            losses:         player.losses,
+            doubles_elo:    player.doublesElo,
+            doubles_matches: player.doublesMatches,
+            doubles_wins:   player.doublesWins,
+            doubles_losses: player.doublesLosses,
+        }),
     });
 }
 
 /**
  * Match speichern.
- * @param {{ date: string, type: string, winnerId: string, loserId: string,
- *           winnerName: string, loserName: string, eloChange: number }} match
+ * @param {{ date, type, winnerId, loserId, winnerName, loserName, eloChange }} match
  */
 export async function createMatch(match) {
-    await get({
-        action:     'addMatch',
-        date:       match.date,
-        type:       match.type,
-        winnerId:   match.winnerId,
-        loserId:    match.loserId,
-        winnerName: match.winnerName,
-        loserName:  match.loserName,
-        eloChange:  match.eloChange,
+    await request('matches', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+            date:       match.date,
+            type:       match.type,
+            winner_id:  match.winnerId,
+            loser_id:   match.loserId,
+            winner_name: match.winnerName,
+            loser_name:  match.loserName,
+            elo_change:  match.eloChange,
+        }),
     });
 }
