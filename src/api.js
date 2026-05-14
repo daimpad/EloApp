@@ -13,21 +13,25 @@
 
 let supabaseUrl = '';
 let supabaseKey = '';
+let appSecret   = '';
 
-export function initApi(url, key) {
-    supabaseUrl = String(url || '').replace(/\/$/, '');
-    supabaseKey = String(key || '');
+export function initApi(url, key, secret = '') {
+    supabaseUrl = String(url    || '').replace(/\/$/, '');
+    supabaseKey = String(key    || '');
+    appSecret   = String(secret || '');
 }
 
 // ── HTTP-Hilfsfunktionen ───────────────────────────────────────────────────
 
 function headers(extra = {}) {
-    return {
-        apikey:        supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
+    const h = {
+        apikey:         supabaseKey,
+        Authorization:  `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
         ...extra,
     };
+    if (appSecret) h['x-app-secret'] = appSecret;
+    return h;
 }
 
 async function request(path, options = {}) {

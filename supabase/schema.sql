@@ -1,5 +1,8 @@
 -- EloApp – Supabase Schema
 -- Dieses Script im Supabase SQL-Editor ausführen (einmalig beim Setup).
+--
+-- WICHTIG: Ersetze 'DEIN_GEHEIMES_PASSWORT' durch ein eigenes Passwort.
+-- Dasselbe Passwort muss in config.js als APP_SECRET eingetragen werden.
 
 -- ── Spieler ───────────────────────────────────────────────────────────────
 
@@ -32,14 +35,37 @@ CREATE TABLE IF NOT EXISTS matches (
 );
 
 -- ── Row Level Security (RLS) ──────────────────────────────────────────────
--- Öffentliches Lesen erlauben; Schreiben nur mit dem Anon-Key.
--- Passe die Policies an deine Sicherheitsanforderungen an.
 
 ALTER TABLE players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Spieler lesen" ON players FOR SELECT USING (true);
-CREATE POLICY "Spieler schreiben" ON players FOR ALL USING (true);
+-- Lesen: jeder darf (Rangliste, Demo-Modus)
+CREATE POLICY "public_read_players" ON players FOR SELECT USING (true);
+CREATE POLICY "public_read_matches" ON matches FOR SELECT USING (true);
 
-CREATE POLICY "Matches lesen" ON matches FOR SELECT USING (true);
-CREATE POLICY "Matches schreiben" ON matches FOR ALL USING (true);
+-- Schreiben: nur mit x-app-secret Header
+-- !! Ersetze 'DEIN_GEHEIMES_PASSWORT' mit deinem eigenen Wert !!
+CREATE POLICY "secret_insert_players" ON players FOR INSERT
+    WITH CHECK (
+        (current_setting('request.headers', true)::json->>'x-app-secret') = 'DEIN_GEHEIMES_PASSWORT'
+    );
+
+CREATE POLICY "secret_update_players" ON players FOR UPDATE
+    USING (
+        (current_setting('request.headers', true)::json->>'x-app-secret') = 'DEIN_GEHEIMES_PASSWORT'
+    );
+
+CREATE POLICY "secret_delete_players" ON players FOR DELETE
+    USING (
+        (current_setting('request.headers', true)::json->>'x-app-secret') = 'DEIN_GEHEIMES_PASSWORT'
+    );
+
+CREATE POLICY "secret_insert_matches" ON matches FOR INSERT
+    WITH CHECK (
+        (current_setting('request.headers', true)::json->>'x-app-secret') = 'DEIN_GEHEIMES_PASSWORT'
+    );
+
+CREATE POLICY "secret_delete_matches" ON matches FOR DELETE
+    USING (
+        (current_setting('request.headers', true)::json->>'x-app-secret') = 'DEIN_GEHEIMES_PASSWORT'
+    );

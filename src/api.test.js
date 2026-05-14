@@ -301,4 +301,23 @@ describe('initApi', () => {
         expect(vi.mocked(fetch).mock.calls[0][0]).toContain(newUrl);
         initApi(BASE_URL, ANON_KEY);
     });
+
+    it('sendet x-app-secret Header wenn Secret gesetzt ist', async () => {
+        initApi(BASE_URL, ANON_KEY, 'mein-geheimnis');
+        vi.stubGlobal('fetch', mockFetch([]));
+        await fetchPlayers();
+
+        const headers = vi.mocked(fetch).mock.calls[0][1].headers;
+        expect(headers['x-app-secret']).toBe('mein-geheimnis');
+        initApi(BASE_URL, ANON_KEY);
+    });
+
+    it('sendet keinen x-app-secret Header wenn Secret leer ist', async () => {
+        initApi(BASE_URL, ANON_KEY, '');
+        vi.stubGlobal('fetch', mockFetch([]));
+        await fetchPlayers();
+
+        const headers = vi.mocked(fetch).mock.calls[0][1].headers;
+        expect(headers['x-app-secret']).toBeUndefined();
+    });
 });
