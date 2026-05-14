@@ -25,6 +25,9 @@
             <div class="tab" onclick="openTab(this, 'rankings')">
                 <span class="emoji">🏅</span> Rangliste
             </div>
+            <div class="tab" onclick="openTab(this, 'elo-chart'); showChartType('singles')">
+                <span class="emoji">📈</span> ELO-Verlauf
+            </div>
             <div class="tab" onclick="openTab(this, 'history')">
                 <span class="emoji">📜</span> Spielverlauf
             </div>
@@ -163,6 +166,17 @@
         <!-- Lade-Overlay -->
         <div id="chicken-loader" class="chicken-overlay" aria-live="polite" aria-label="Ladevorgang läuft...">
             <div class="chicken-spinner"></div>
+        </div>
+
+        <div id="elo-chart" class="tab-content">
+            <h2><span class="emoji">📈</span> ELO-Verlauf</h2>
+            <div class="chart-type-tabs">
+                <button class="chart-tab active" onclick="showChartType('singles')">Einzel</button>
+                <button class="chart-tab" onclick="showChartType('doubles')">Doppel</button>
+            </div>
+            <div class="chart-container">
+                <canvas id="eloChart"></canvas>
+            </div>
         </div>
 
         <div id="history" class="tab-content">
