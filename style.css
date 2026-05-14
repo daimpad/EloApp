@@ -477,6 +477,147 @@ tr:hover td { background: #f9f9f9; }
     100% { top: 100vh; transform: rotate(720deg) translateX(50px); opacity: 0; }
 }
 
+/* ================= PLAYER PROFILE MODAL ================= */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-card {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #f0f0f0;
+    color: #333;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    box-shadow: none;
+    transition: background 0.2s;
+}
+
+.modal-close:hover {
+    background: #e0e0e0;
+    transform: none;
+    box-shadow: none;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.profile-avatar {
+    font-size: 56px;
+    line-height: 1;
+}
+
+.profile-name {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.8em;
+    color: #c51216;
+    margin: 0;
+}
+
+.profile-stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-box {
+    flex: 1;
+    background: #f9f9f9;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 14px;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #888;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2em;
+    color: #c51216;
+    line-height: 1.1;
+}
+
+.stat-sub {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.profile-chart-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.profile-chart-tab {
+    background: #f0f0f0;
+    color: #333;
+    border-radius: 10px;
+    flex: 1;
+    font-size: 14px;
+    padding: 8px 16px;
+}
+
+.profile-chart-tab.active {
+    background: #c51216;
+    color: white;
+}
+
+.profile-chart-tab:hover {
+    background: #e0e0e0;
+    color: #333;
+    box-shadow: none;
+}
+
+.profile-chart-tab.active:hover {
+    background: #a30f12;
+    color: white;
+}
+
+tr.win-row td { background: #f0faf7; }
+tr.loss-row td { background: #fff5f5; }
+tr.win-row:hover td { background: #e0f5ee; }
+tr.loss-row:hover td { background: #ffe8e8; }
+
 /* ================= ELO CHART ================= */
 
 .chart-type-tabs {

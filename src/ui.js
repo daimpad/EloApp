@@ -173,7 +173,10 @@ export function showRankingTab(type) {
     renderRankings();
 }
 
-export function renderRankings() {
+let _onPlayerRowClick = null;
+
+export function renderRankings(onRowClick = null) {
+    _onPlayerRowClick = onRowClick;
     renderSinglesRanking();
     renderDoublesRanking();
 }
@@ -200,6 +203,12 @@ function renderDoublesRanking() {
 
 function buildRankRow(index, id, player, eloKey, matchesKey, winsKey, lossesKey) {
     const row = document.createElement('tr');
+
+    if (_onPlayerRowClick) {
+        row.style.cursor = 'pointer';
+        row.title = `${player.name} Profil anzeigen`;
+        row.addEventListener('click', () => _onPlayerRowClick(id));
+    }
 
     const rankSpan = document.createElement('span');
     rankSpan.className = 'rank-badge';
@@ -307,6 +316,114 @@ export function renderHistory(onDelete = null) {
 
         body.appendChild(row);
     });
+}
+
+// ================= SPIELER-PROFIL =================
+
+export function openPlayerProfile(playerId, onChartTypeChange) {
+    const player = state.players[playerId];
+    if (!player) return;
+
+    document.getElementById('profile-avatar').textContent = getAvatarEmoji(playerId);
+    document.getElementById('profile-name').textContent   = player.name;
+
+    document.getElementById('profile-singles-elo').textContent    = player.elo;
+    document.getElementById('profile-singles-record').textContent =
+        `${player.wins}S / ${player.losses}N (${player.matches} Spiele)`;
+
+    document.getElementById('profile-doubles-elo').textContent    = player.doublesElo;
+    document.getElementById('profile-doubles-record').textContent =
+        `${player.doublesWins}S / ${player.doublesLosses}N (${player.doublesMatches} Spiele)`;
+
+    // Chart-Tab-Buttons verdrahten
+    document.querySelectorAll('.profile-chart-tab').forEach(t => {
+        t.classList.remove('active');
+        t.onclick = () => {
+            document.querySelectorAll('.profile-chart-tab').forEach(x => x.classList.remove('active'));
+            t.classList.add('active');
+            onChartTypeChange(playerId, t.getAttribute('data-type'));
+        };
+    });
+    document.querySelector('.profile-chart-tab[data-type="singles"]')?.classList.add('active');
+
+    _renderProfileHistory(playerId);
+
+    document.getElementById('player-profile-modal').style.display = 'flex';
+}
+
+function _renderProfileHistory(playerId) {
+    const body = document.getElementById('profile-history-body');
+    body.innerHTML = '';
+
+    const playerMatches = [...state.matches]
+        .filter(m => {
+            const wIds = String(m.winnerId || '').split(',').map(s => s.trim());
+            const lIds = String(m.loserId  || '').split(',').map(s => s.trim());
+            return wIds.includes(playerId) || lIds.includes(playerId);
+        })
+        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+        .slice(0, 15);
+
+    if (playerMatches.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.textContent = 'Noch keine Spiele eingetragen.';
+        cell.style.textAlign = 'center';
+        cell.style.color = '#999';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+    }
+
+    playerMatches.forEach(match => {
+        const wIds = String(match.winnerId || '').split(',').map(s => s.trim());
+        const isWin = wIds.includes(playerId);
+        const isSingles = String(match.type || '').toLowerCase().includes('singles');
+
+        const opponentId = isWin ? match.loserId : match.winnerId;
+        const opponentIds = String(opponentId || '').split(',').map(s => s.trim());
+        const opponentNames = opponentIds.map(id => {
+            const p = state.players[id];
+            return p ? `${getAvatarEmoji(id)} ${p.name}` : 'Unbekannt';
+        }).join(' & ');
+
+        const row = document.createElement('tr');
+        row.className = isWin ? 'win-row' : 'loss-row';
+
+        const matchDate = new Date(match.date);
+        row.appendChild(td(
+            isNaN(matchDate.getTime()) ? '-' :
+                matchDate.toLocaleDateString() + ' ' +
+                matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        ));
+
+        const typeSpan = document.createElement('span');
+        typeSpan.className = `match-type-indicator match-${isSingles ? 'singles' : 'doubles'}`;
+        typeSpan.textContent = isSingles ? 'Einzel' : 'Doppel';
+        const typeCell = document.createElement('td');
+        typeCell.appendChild(typeSpan);
+        row.appendChild(typeCell);
+
+        const oppCell = document.createElement('td');
+        oppCell.innerHTML = opponentNames;
+        row.appendChild(oppCell);
+
+        const resultCell = td(isWin ? '🏆 Sieg' : '❌ Niederlage');
+        resultCell.style.fontWeight = 'bold';
+        resultCell.style.color = isWin ? '#27ae60' : '#e74c3c';
+        row.appendChild(resultCell);
+
+        const eloCell = td((isWin ? '+' : '−') + (match.eloChange ?? 0));
+        eloCell.className = isWin ? 'elo-positive' : 'elo-negative';
+        row.appendChild(eloCell);
+
+        body.appendChild(row);
+    });
+}
+
+export function closePlayerProfile() {
+    document.getElementById('player-profile-modal').style.display = 'none';
 }
 
 // ================= KONFETTI =================
