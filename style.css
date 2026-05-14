@@ -656,33 +656,126 @@ tr.loss-row:hover td { background: #ffe8e8; }
 
 /* ================= RESPONSIVE ================= */
 
+/* Scrollable table wrapper — applied in HTML via .table-scroll */
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+}
+
 @media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
     .container {
-        padding: 15px;
+        padding: 14px;
+        border-radius: 14px;
     }
 
     .header h1 {
-        font-size: 1.8em;
+        font-size: 1.6em;
     }
 
+    /* ── Tabs: single scrollable row ── */
     .tab-container {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
         gap: 6px;
+        padding-bottom: 4px;
+        scrollbar-width: none;
     }
+    .tab-container::-webkit-scrollbar { display: none; }
 
     .tab {
-        padding: 8px 12px;
-        font-size: 14px;
+        flex-shrink: 0;
+        padding: 9px 14px;
+        font-size: 13px;
     }
 
+    /* ── Team layout ── */
     .team-selection {
         flex-direction: column;
     }
 
+    /* ── Tables ── */
     table {
         font-size: 13px;
     }
 
     th, td {
         padding: 8px 6px;
+    }
+
+    /* ── Player cards: 3-column grid on small screens ── */
+    .player-list,
+    .player-selection-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .player-card,
+    .doubles-player-card {
+        min-width: unset;
+        width: 100%;
+        padding: 10px 6px;
+    }
+
+    .player-card .avatar {
+        font-size: 24px;
+    }
+
+    .player-card .name {
+        font-size: 12px;
+    }
+
+    /* ── Modal: full screen ── */
+    .modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    .modal-card {
+        border-radius: 20px 20px 0 0;
+        max-height: 92vh;
+        padding: 20px 16px;
+    }
+
+    .profile-stats {
+        gap: 8px;
+    }
+
+    .stat-value {
+        font-size: 1.6em;
+    }
+
+    /* ── Buttons: guaranteed touch target ── */
+    button {
+        min-height: 44px;
+    }
+
+    /* ── Game mode + ranking tab rows ── */
+    .game-mode-selector,
+    .ranking-tabs,
+    .chart-type-tabs,
+    .profile-chart-tabs {
+        gap: 8px;
+    }
+}
+
+/* Remove hover lift effects on touch-primary devices */
+@media (hover: none) {
+    .tab:hover,
+    .player-card:hover,
+    .doubles-player-card:hover {
+        transform: none;
+    }
+
+    button:hover {
+        transform: none;
+        box-shadow: none;
     }
 }
