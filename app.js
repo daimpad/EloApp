@@ -1,3 +1,5 @@
+import { K_FACTOR, STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './src/elo.js';
+
 // ================= KONFIGURATION =================
 
 // API-URL wird aus config.js geladen (nicht im Repository enthalten).
@@ -15,9 +17,6 @@ let matches = [];
 let selectedPlayers = [];
 let currentGameMode = 'singles';
 let isDataLoading = false;
-
-const K_FACTOR = 32;
-const STARTING_ELO = 1000;
 
 // ================= HAUPTFUNKTIONEN =================
 
@@ -250,14 +249,12 @@ function recalculateStatsFromHistory() {
             const loser  = players[loserId];
             if (!winner || !loser) return;
 
-            const expectedWinner = 1 / (1 + Math.pow(10, (loser.elo - winner.elo) / 400));
-            const expectedLoser  = 1 / (1 + Math.pow(10, (winner.elo - loser.elo) / 400));
-
-            winner.elo     = Math.round(winner.elo + K_FACTOR * (1 - expectedWinner));
+            const result = calculateSinglesMatch(winner.elo, loser.elo);
+            winner.elo     = result.winnerElo;
             winner.matches = (winner.matches || 0) + 1;
             winner.wins    = (winner.wins    || 0) + 1;
 
-            loser.elo      = Math.round(loser.elo  + K_FACTOR * (0 - expectedLoser));
+            loser.elo      = result.loserElo;
             loser.matches  = (loser.matches  || 0) + 1;
             loser.losses   = (loser.losses   || 0) + 1;
         } else {
@@ -266,11 +263,10 @@ function recalculateStatsFromHistory() {
 
             if (winners.some(id => !players[id]) || losers.some(id => !players[id])) return;
 
-            const teamWinnerElo = winners.reduce((s, id) => s + players[id].doublesElo, 0) / winners.length;
-            const teamLoserElo  = losers.reduce( (s, id) => s + players[id].doublesElo, 0) / losers.length;
-
-            const expectedWinner = 1 / (1 + Math.pow(10, (teamLoserElo - teamWinnerElo) / 400));
-            const eloChange = Math.round(K_FACTOR * (1 - expectedWinner));
+            const { eloChange } = calculateDoublesMatch(
+                winners.map(id => players[id].doublesElo),
+                losers.map(id => players[id].doublesElo)
+            );
 
             winners.forEach(id => {
                 players[id].doublesElo     = (players[id].doublesElo     || STARTING_ELO) + eloChange;
@@ -365,20 +361,16 @@ async function recordMatch() {
     const winner = players[winnerId];
     const loser  = players[loserId];
 
-    const expectedScoreWinner = 1 / (1 + Math.pow(10, (loser.elo - winner.elo) / 400));
-    const expectedScoreLoser  = 1 / (1 + Math.pow(10, (winner.elo - loser.elo) / 400));
-
-    const newEloWinner = Math.round(winner.elo + K_FACTOR * (1 - expectedScoreWinner));
-    const newEloLoser  = Math.round(loser.elo  + K_FACTOR * (0 - expectedScoreLoser));
-    const eloDiff = newEloWinner - winner.elo;
-
-    winner.elo = newEloWinner;
+    const result = calculateSinglesMatch(winner.elo, loser.elo);
+    winner.elo = result.winnerElo;
     winner.matches++;
     winner.wins++;
 
-    loser.elo = newEloLoser;
+    loser.elo = result.loserElo;
     loser.matches++;
     loser.losses++;
+
+    const eloDiff = result.eloChange;
 
     const match = {
         date: new Date().toISOString(),
@@ -411,11 +403,10 @@ async function recordDoublesMatch() {
     const winners = winningTeam === 'team1' ? team1 : team2;
     const losers  = winningTeam === 'team1' ? team2 : team1;
 
-    const teamWinnerElo = (players[winners[0]].doublesElo + players[winners[1]].doublesElo) / 2;
-    const teamLoserElo  = (players[losers[0]].doublesElo  + players[losers[1]].doublesElo)  / 2;
-
-    const expectedScoreWinner = 1 / (1 + Math.pow(10, (teamLoserElo - teamWinnerElo) / 400));
-    const eloChange = Math.round(K_FACTOR * (1 - expectedScoreWinner));
+    const { eloChange } = calculateDoublesMatch(
+        winners.map(id => players[id].doublesElo),
+        losers.map(id => players[id].doublesElo)
+    );
 
     winners.forEach(playerId => {
         players[playerId].doublesElo += eloChange;
