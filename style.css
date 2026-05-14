@@ -477,6 +477,20 @@ tr:hover td { background: #f9f9f9; }
     100% { top: 100vh; transform: rotate(720deg) translateX(50px); opacity: 0; }
 }
 
+/* ================= DEMO BANNER ================= */
+
+.demo-banner {
+    background: linear-gradient(90deg, #FFB347, #FFD700);
+    color: #7a4800;
+    font-weight: bold;
+    text-align: center;
+    padding: 8px 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+}
+
 /* ================= PLAYER PROFILE MODAL ================= */
 
 .modal-overlay {

@@ -1,6 +1,9 @@
 import { STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './src/elo.js';
 import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch, deleteMatch } from './src/api.js';
 import { state, persistPlayers, persistMatches, loadLocalPlayers, loadLocalMatches, recalculateStatsFromHistory } from './src/state.js';
+import { DEMO_PLAYERS, DEMO_MATCHES } from './src/demo.js';
+
+const IS_DEMO = new URLSearchParams(location.search).has('demo');
 import {
     showError, showSuccess, toggleLoading,
     openTab, renderGameModeSwitch,
@@ -59,15 +62,32 @@ window.addPlayer          = addPlayer;
 // ================= INITIALISIERUNG =================
 
 window.onload = async function() {
+    document.getElementById('winning-team').addEventListener('change', updateTeamDisplay);
+
+    if (IS_DEMO) {
+        loadDemoData();
+        return;
+    }
+
     if (!_cfg.SUPABASE_URL || !_cfg.SUPABASE_ANON_KEY) {
         showError('Supabase nicht konfiguriert. Bitte config.js anlegen (siehe config.example.js).');
     }
 
-    document.getElementById('winning-team').addEventListener('change', updateTeamDisplay);
-
     await loadPlayers();
     await loadMatches();
 };
+
+function loadDemoData() {
+    const banner = document.getElementById('demo-banner');
+    if (banner) banner.style.display = 'block';
+
+    state.players = structuredClone(DEMO_PLAYERS);
+    state.matches  = structuredClone(DEMO_MATCHES);
+    recalculateStatsFromHistory();
+    renderAll();
+    renderHistory(removeDemoMatch);
+    renderRankings(openProfileModal);
+}
 
 // ================= DATEN LADEN =================
 
@@ -149,6 +169,15 @@ async function addPlayer() {
         doublesElo:    STARTING_ELO,
         doublesMatches: 0, doublesWins: 0, doublesLosses: 0,
     };
+
+    if (IS_DEMO) {
+        showSuccess(`Demo: "${playerName}" hinzugefügt (nur lokal).`);
+        document.getElementById('playerName').value = '';
+        showConfetti();
+        renderAll();
+        return;
+    }
+
     persistPlayers();
     toggleLoading(true);
 
@@ -249,7 +278,19 @@ async function recordDoublesMatch() {
 }
 
 async function saveMatch(match, playerEntries) {
+    match.id = match.id ?? Date.now();
     state.matches.push(match);
+
+    if (IS_DEMO) {
+        const gameType = match.type === 'singles' ? 'Einzel' : 'Doppel';
+        showSuccess(`Demo: ${gameType}-Match gespeichert! ${match.winnerName} gewinnt gegen ${match.loserName} (+${match.eloChange} Elo)`);
+        showConfetti();
+        renderRankings(openProfileModal);
+        renderHistory(removeDemoMatch);
+        clearSelections();
+        return;
+    }
+
     persistPlayers();
     persistMatches();
     toggleLoading(true);
@@ -304,6 +345,14 @@ async function removeMatch(id) {
     } finally {
         toggleLoading(false);
     }
+}
+
+function removeDemoMatch(id) {
+    state.matches = state.matches.filter(m => m.id !== id);
+    recalculateStatsFromHistory();
+    renderRankings(openProfileModal);
+    renderHistory(removeDemoMatch);
+    showSuccess('Demo: Match gelöscht und ELO-Werte neu berechnet.');
 }
 
 // ================= SPIELER-PROFIL =================
