@@ -1,0 +1,340 @@
+import { state } from './state.js';
+
+// ================= AVATAR =================
+
+const avatarEmojis = ['😎','🤩','🤓','🤠','👻','🤖','👽','🦄','🐱','🐶','🦊','🦁','🐯','🐺','🦝','🐨','🐼','🐹','🐰','🦇','🐝','🐢','🦖','🐙','🦋','🦜','🦢','🦚','🦉','🦁','🐌','🦀','🦞','🦐','🐠','🐬','🐳','🦈','🦭','🐘','🦏','🦛','🐪','🦒','🦘','🦬','🐂','🐄','🐎','🦮','🐕','🐩','🐈','🦙','🦌','🐑','🐐','🐏','🐖','🐓','🦃','🦆','🦅'];
+
+export function getAvatarEmoji(playerId) {
+    playerId = String(playerId || '');
+    if (!playerId) return '🐔';
+    const seed = playerId.charCodeAt(0) + playerId.charCodeAt(playerId.length - 1);
+    return avatarEmojis[seed % avatarEmojis.length];
+}
+
+// ================= NACHRICHTEN =================
+
+export function showError(message) {
+    const el = document.getElementById('errorMessage');
+    el.textContent = message;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+export function showSuccess(message) {
+    const el = document.getElementById('successMessage');
+    el.textContent = message;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+export function toggleLoading(show) {
+    const el = document.querySelector('.chicken-overlay');
+    if (!el) return;
+    el.style.display = show ? 'flex' : 'none';
+    el.style.opacity = show ? 1 : 0;
+}
+
+// ================= TABS =================
+
+export function openTab(element, tabName) {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(tabName).classList.add('active');
+    element.classList.add('active');
+}
+
+// ================= SPIELMODUS =================
+
+export function renderGameModeSwitch(mode) {
+    document.querySelectorAll('.mode-button').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.mode-button[data-mode="${mode}"]`)?.classList.add('active');
+
+    document.getElementById('singles-interface').style.display = mode === 'singles' ? 'block' : 'none';
+    document.getElementById('doubles-interface').style.display = mode === 'doubles' ? 'block' : 'none';
+}
+
+// ================= SPIELER-AUSWAHL ZURÜCKSETZEN =================
+
+export function clearTeamDisplay() {
+    ['team1-player1','team1-player2','team2-player1','team2-player2'].forEach(id => {
+        document.getElementById(id).textContent = '-';
+    });
+    document.querySelectorAll('.doubles-player-card').forEach(card => {
+        card.classList.remove('selected-team1', 'selected-team2');
+    });
+    document.getElementById('team1').classList.remove('team-winner', 'team-loser');
+    document.getElementById('team2').classList.remove('team-winner', 'team-loser');
+    document.getElementById('winning-team').value = '';
+}
+
+export function clearPlayerCardSelection() {
+    document.querySelectorAll('.player-card').forEach(card => card.classList.remove('selected'));
+    document.getElementById('winner').value = '';
+    document.getElementById('loser').value  = '';
+}
+
+// ================= DROPDOWN-MENÜS =================
+
+export function renderPlayerDropdowns() {
+    const winnerSelect = document.getElementById('winner');
+    const loserSelect  = document.getElementById('loser');
+
+    winnerSelect.innerHTML = '<option value="">-- Spieler auswählen --</option>';
+    loserSelect.innerHTML  = '<option value="">-- Spieler auswählen --</option>';
+
+    sortedByName(state.players).forEach(([id, player]) => {
+        const opt = (sel) => {
+            const o = document.createElement('option');
+            o.value = id;
+            o.textContent = player.name;
+            sel.appendChild(o);
+        };
+        opt(winnerSelect);
+        opt(loserSelect);
+    });
+}
+
+// ================= SPIELERKARTEN (EINZEL) =================
+
+export function renderPlayerList(onSelect) {
+    const list = document.getElementById('playerList');
+    list.innerHTML = '';
+
+    sortedByName(state.players).forEach(([id, player]) => {
+        const card = createPlayerCard(id, player.name);
+        card.addEventListener('click', () => onSelect(id));
+        list.appendChild(card);
+    });
+}
+
+export function filterPlayerList() {
+    const term = document.getElementById('player-search').value.toLowerCase();
+    document.querySelectorAll('.player-card').forEach(card => {
+        const name = card.querySelector('.name').textContent.toLowerCase();
+        card.style.display = name.includes(term) ? 'block' : 'none';
+    });
+}
+
+export function highlightSinglesSelection() {
+    const selected = [...document.querySelectorAll('.player-card.selected')];
+    if (selected.length >= 1) document.getElementById('winner').value = selected[0].dataset.id;
+    if (selected.length >= 2) document.getElementById('loser').value  = selected[1].dataset.id;
+}
+
+// ================= SPIELERKARTEN (DOPPEL) =================
+
+export function renderDoublesGrid(onSelect) {
+    const grid = document.getElementById('doublesPlayerGrid');
+    grid.innerHTML = '';
+
+    sortedByName(state.players).forEach(([id, player]) => {
+        const card = document.createElement('div');
+        card.className = 'doubles-player-card';
+        card.dataset.id = id;
+
+        const avatar  = el('div', { style: 'font-size:20px' }, getAvatarEmoji(id));
+        const name    = el('div', { style: 'margin-top:5px;font-size:14px' }, player.name);
+        const eloInfo = el('div', { style: 'font-size:12px;color:#666' }, `Doppel: ${player.doublesElo}`);
+
+        card.append(avatar, name, eloInfo);
+        card.addEventListener('click', () => onSelect(id));
+        grid.appendChild(card);
+    });
+}
+
+export function updateTeamDisplay() {
+    const sp = state.selectedPlayers;
+
+    document.getElementById('team1-player1').textContent = sp[0] ? state.players[sp[0]].name : '-';
+    document.getElementById('team1-player2').textContent = sp[1] ? state.players[sp[1]].name : '-';
+    document.getElementById('team2-player1').textContent = sp[2] ? state.players[sp[2]].name : '-';
+    document.getElementById('team2-player2').textContent = sp[3] ? state.players[sp[3]].name : '-';
+
+    const winning = document.getElementById('winning-team').value;
+    document.getElementById('team1').classList.remove('team-winner', 'team-loser');
+    document.getElementById('team2').classList.remove('team-winner', 'team-loser');
+
+    if (winning === 'team1') {
+        document.getElementById('team1').classList.add('team-winner');
+        document.getElementById('team2').classList.add('team-loser');
+    } else if (winning === 'team2') {
+        document.getElementById('team2').classList.add('team-winner');
+        document.getElementById('team1').classList.add('team-loser');
+    }
+}
+
+// ================= RANGLISTE =================
+
+export function showRankingTab(type) {
+    document.querySelectorAll('.ranking-tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('singles-ranking').style.display = type === 'singles' ? 'block' : 'none';
+    document.getElementById('doubles-ranking').style.display = type === 'doubles' ? 'block' : 'none';
+    renderRankings();
+}
+
+export function renderRankings() {
+    renderSinglesRanking();
+    renderDoublesRanking();
+}
+
+function renderSinglesRanking() {
+    const body = document.getElementById('singlesRankingsBody');
+    body.innerHTML = '';
+    Object.entries(state.players)
+        .sort((a, b) => b[1].elo - a[1].elo)
+        .forEach(([id, player], i) =>
+            body.appendChild(buildRankRow(i, id, player, 'elo', 'matches', 'wins', 'losses'))
+        );
+}
+
+function renderDoublesRanking() {
+    const body = document.getElementById('doublesRankingsBody');
+    body.innerHTML = '';
+    Object.entries(state.players)
+        .sort((a, b) => b[1].doublesElo - a[1].doublesElo)
+        .forEach(([id, player], i) =>
+            body.appendChild(buildRankRow(i, id, player, 'doublesElo', 'doublesMatches', 'doublesWins', 'doublesLosses'))
+        );
+}
+
+function buildRankRow(index, id, player, eloKey, matchesKey, winsKey, lossesKey) {
+    const row = document.createElement('tr');
+
+    const rankSpan = document.createElement('span');
+    rankSpan.className = 'rank-badge';
+    if      (index === 0) rankSpan.classList.add('rank-1');
+    else if (index === 1) rankSpan.classList.add('rank-2');
+    else if (index === 2) rankSpan.classList.add('rank-3');
+    else                  rankSpan.style.backgroundColor = '#c51216';
+    rankSpan.textContent = index + 1;
+
+    const rankCell = document.createElement('td');
+    rankCell.appendChild(rankSpan);
+    row.appendChild(rankCell);
+
+    const nameCell = document.createElement('td');
+    nameCell.innerHTML = `${getAvatarEmoji(id)} ${player.name}`;
+    row.appendChild(nameCell);
+
+    [player[eloKey], player[matchesKey], player[winsKey], player[lossesKey]].forEach(val => {
+        const td = document.createElement('td');
+        td.textContent = val;
+        row.appendChild(td);
+    });
+
+    return row;
+}
+
+// ================= SPIELVERLAUF =================
+
+export function renderHistory() {
+    const body = document.getElementById('historyBody');
+    body.innerHTML = '';
+
+    const sorted = [...state.matches].sort((a, b) =>
+        new Date(b.date || 0) - new Date(a.date || 0)
+    );
+
+    const playerDisplay = (idStr) => {
+        const ids   = String(idStr || '').split(',').map(s => s.trim());
+        const parts = ids.map(id => {
+            const p = state.players[id];
+            return `${getAvatarEmoji(id)} ${p ? p.name : 'Unbekannt'}`;
+        });
+        return parts.length > 1
+            ? `<div class="team-display">${parts.join(' & ')}</div>`
+            : parts[0];
+    };
+
+    sorted.forEach(match => {
+        let { date, type, winnerId, loserId, eloChange } = match;
+
+        // Workaround für ältere Matches mit verschobenen Spalten
+        const winnerIsType = String(winnerId).toLowerCase().includes('singles') ||
+                             String(winnerId).toLowerCase().includes('doubles');
+        if (winnerIsType) {
+            type     = winnerId;
+            winnerId = loserId;
+            loserId  = match.winnerName;
+            eloChange = eloChange || 0;
+        }
+
+        const row = document.createElement('tr');
+
+        const matchDate = new Date(date);
+        row.appendChild(td(
+            isNaN(matchDate.getTime())
+                ? '-'
+                : matchDate.toLocaleDateString() + ' ' +
+                  matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        ));
+
+        const isSingles = String(type).toLowerCase().includes('singles');
+        const typeSpan  = document.createElement('span');
+        typeSpan.className = `match-type-indicator match-${isSingles ? 'singles' : 'doubles'}`;
+        typeSpan.textContent = isSingles ? 'Einzel' : 'Doppel';
+        const typeCell = document.createElement('td');
+        typeCell.appendChild(typeSpan);
+        row.appendChild(typeCell);
+
+        const winnerCell = document.createElement('td');
+        winnerCell.innerHTML = playerDisplay(winnerId);
+        row.appendChild(winnerCell);
+
+        const loserCell = document.createElement('td');
+        loserCell.innerHTML = playerDisplay(loserId);
+        row.appendChild(loserCell);
+
+        const eloCell = td('+' + (eloChange ?? 0));
+        eloCell.className = 'elo-positive';
+        row.appendChild(eloCell);
+
+        body.appendChild(row);
+    });
+}
+
+// ================= KONFETTI =================
+
+export function showConfetti() {
+    const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#c51216'];
+    document.querySelectorAll('.confetti').forEach(c => c.remove());
+
+    for (let i = 0; i < 100; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti';
+        piece.style.left = Math.random() * 100 + 'vw';
+        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDuration = (Math.random() * 3 + 2) + 's';
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 5000);
+    }
+}
+
+// ================= HILFSFUNKTIONEN =================
+
+function sortedByName(players) {
+    return Object.entries(players).sort((a, b) => a[1].name.localeCompare(b[1].name));
+}
+
+function createPlayerCard(id, name) {
+    const card   = document.createElement('div');
+    card.className  = 'player-card';
+    card.dataset.id = id;
+    card.appendChild(el('div', { className: 'avatar' }, getAvatarEmoji(id)));
+    card.appendChild(el('div', { className: 'name'   }, name));
+    return card;
+}
+
+function el(tag, attrs = {}, text = '') {
+    const node = document.createElement(tag);
+    Object.assign(node, attrs);
+    if (text) node.textContent = text;
+    return node;
+}
+
+function td(text) {
+    const cell = document.createElement('td');
+    cell.textContent = text;
+    return cell;
+}
