@@ -65,6 +65,7 @@ function rowToPlayer(row) {
 /** DB-Zeile → App-Match-Objekt */
 function rowToMatch(row) {
     return {
+        id:         row.id,
         date:       row.date,
         type:       row.type,
         winnerId:   row.winner_id,
@@ -140,6 +141,17 @@ export async function updatePlayer(id, player) {
             doubles_wins:   player.doublesWins,
             doubles_losses: player.doublesLosses,
         }),
+    });
+}
+
+/**
+ * Match löschen.
+ * @param {number} id  Supabase-ID des Matches
+ */
+export async function deleteMatch(id) {
+    await request(`matches?id=eq.${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Prefer: 'return=minimal' },
     });
 }
 
