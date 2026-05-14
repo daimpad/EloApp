@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch } from './api.js';
+import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch, deleteMatch } from './api.js';
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────
 
@@ -105,6 +105,7 @@ describe('fetchMatches', () => {
         const result = await fetchMatches();
 
         expect(result).toEqual([{
+            id: 1,
             date: '2025-05-01T12:00:00Z', type: 'singles',
             winnerId: '1', loserId: '2',
             winnerName: 'Anna', loserName: 'Ben',
@@ -235,6 +236,47 @@ describe('createMatch', () => {
     it('wirft bei HTTP-Fehler', async () => {
         vi.stubGlobal('fetch', mockFetchError(500, 'Schreibfehler'));
         await expect(createMatch(match)).rejects.toThrow('Schreibfehler');
+    });
+});
+
+// ── deleteMatch ────────────────────────────────────────────────────────────
+
+describe('deleteMatch', () => {
+    it('sendet DELETE an /matches?id=eq.{id}', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
+        await deleteMatch(42);
+
+        const [url, opts] = vi.mocked(fetch).mock.calls[0];
+        expect(url).toContain('/rest/v1/matches?id=eq.42');
+        expect(opts.method).toBe('DELETE');
+    });
+
+    it('funktioniert auch mit großen IDs', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
+        await deleteMatch(99999);
+
+        const url = vi.mocked(fetch).mock.calls[0][0];
+        expect(url).toContain('id=eq.99999');
+    });
+
+    it('wirft bei HTTP-Fehler', async () => {
+        vi.stubGlobal('fetch', mockFetchError(404, 'Nicht gefunden'));
+        await expect(deleteMatch(1)).rejects.toThrow('Nicht gefunden');
+    });
+
+    it('wirft bei Netzwerkausfall', async () => {
+        vi.stubGlobal('fetch', mockFetchNetworkError());
+        await expect(deleteMatch(1)).rejects.toThrow('Network Error');
+    });
+});
+
+// ── fetchMatches (id-Feld) ─────────────────────────────────────────────────
+
+describe('fetchMatches id-Mapping', () => {
+    it('enthält die Supabase-ID im App-Match-Objekt', async () => {
+        vi.stubGlobal('fetch', mockFetch([matchRow]));
+        const result = await fetchMatches();
+        expect(result[0].id).toBe(1);
     });
 });
 

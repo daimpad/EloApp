@@ -228,7 +228,7 @@ function buildRankRow(index, id, player, eloKey, matchesKey, winsKey, lossesKey)
 
 // ================= SPIELVERLAUF =================
 
-export function renderHistory() {
+export function renderHistory(onDelete = null) {
     const body = document.getElementById('historyBody');
     body.innerHTML = '';
 
@@ -248,15 +248,15 @@ export function renderHistory() {
     };
 
     sorted.forEach(match => {
-        let { date, type, winnerId, loserId, eloChange } = match;
+        let { id, date, type, winnerId, loserId, eloChange } = match;
 
         // Workaround für ältere Matches mit verschobenen Spalten
         const winnerIsType = String(winnerId).toLowerCase().includes('singles') ||
                              String(winnerId).toLowerCase().includes('doubles');
         if (winnerIsType) {
-            type     = winnerId;
-            winnerId = loserId;
-            loserId  = match.winnerName;
+            type      = winnerId;
+            winnerId  = loserId;
+            loserId   = match.winnerName;
             eloChange = eloChange || 0;
         }
 
@@ -289,6 +289,21 @@ export function renderHistory() {
         const eloCell = td('+' + (eloChange ?? 0));
         eloCell.className = 'elo-positive';
         row.appendChild(eloCell);
+
+        if (onDelete) {
+            const deleteCell = document.createElement('td');
+            const btn = document.createElement('button');
+            btn.className = 'btn-delete-match';
+            btn.textContent = '🗑';
+            btn.title = 'Match löschen';
+            btn.addEventListener('click', () => {
+                if (confirm(`Match löschen?\n${match.winnerName} vs. ${match.loserName}\n\nDie ELO-Werte aller Spieler werden neu berechnet.`)) {
+                    onDelete(id);
+                }
+            });
+            deleteCell.appendChild(btn);
+            row.appendChild(deleteCell);
+        }
 
         body.appendChild(row);
     });

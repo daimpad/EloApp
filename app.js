@@ -1,5 +1,5 @@
 import { STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './src/elo.js';
-import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch } from './src/api.js';
+import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch, deleteMatch } from './src/api.js';
 import { state, persistPlayers, persistMatches, loadLocalPlayers, loadLocalMatches, recalculateStatsFromHistory } from './src/state.js';
 import {
     showError, showSuccess, toggleLoading,
@@ -92,13 +92,13 @@ async function loadMatches() {
     try {
         if (loadLocalMatches()) {
             recalculateStatsFromHistory();
-            renderHistory();
+            renderHistory(removeMatch);
         }
 
         state.matches = await fetchMatches();
         persistMatches();
         recalculateStatsFromHistory();
-        renderHistory();
+        renderHistory(removeMatch);
         renderRankings();
         showSuccess('Spielverlauf erfolgreich geladen!');
     } catch (err) {
@@ -253,8 +253,40 @@ async function saveMatch(match, playerEntries) {
     } finally {
         toggleLoading(false);
         renderRankings();
-        renderHistory();
+        renderHistory(removeMatch);
         clearSelections();
+    }
+}
+
+// ================= MATCH LÖSCHEN =================
+
+async function removeMatch(id) {
+    toggleLoading(true);
+
+    try {
+        await deleteMatch(id);
+
+        state.matches = state.matches.filter(m => m.id !== id);
+        persistMatches();
+
+        recalculateStatsFromHistory();
+
+        // Alle Spieler-ELOs in Supabase aktualisieren
+        await Promise.all(
+            Object.entries(state.players).map(([playerId, player]) =>
+                updatePlayer(playerId, player)
+            )
+        );
+
+        persistPlayers();
+        renderRankings();
+        renderHistory(removeMatch);
+        showSuccess('Match gelöscht und ELO-Werte neu berechnet.');
+    } catch (err) {
+        console.error(err);
+        showError('Fehler beim Löschen des Matches.');
+    } finally {
+        toggleLoading(false);
     }
 }
 

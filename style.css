@@ -332,6 +332,27 @@ button:active {
     color: white;
 }
 
+/* ================= DELETE BUTTON ================= */
+
+.btn-delete-match {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0.35;
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: opacity 0.2s ease, background 0.2s ease;
+    box-shadow: none;
+}
+
+.btn-delete-match:hover {
+    opacity: 1;
+    background: #ffe0e0;
+    transform: none;
+    box-shadow: none;
+}
+
 /* ================= TABLES ================= */
 
 table {
