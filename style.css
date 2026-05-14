@@ -477,6 +477,42 @@ tr:hover td { background: #f9f9f9; }
     100% { top: 100vh; transform: rotate(720deg) translateX(50px); opacity: 0; }
 }
 
+/* ================= ELO CHART ================= */
+
+.chart-type-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.chart-tab {
+    background: #f0f0f0;
+    color: #333;
+    border-radius: 10px;
+    flex: 1;
+}
+
+.chart-tab.active {
+    background: #c51216;
+    color: white;
+}
+
+.chart-tab:hover {
+    background: #e0e0e0;
+    color: #333;
+    box-shadow: none;
+}
+
+.chart-tab.active:hover {
+    background: #a30f12;
+    color: white;
+}
+
+.chart-container {
+    position: relative;
+    width: 100%;
+}
+
 /* ================= RESPONSIVE ================= */
 
 @media (max-width: 600px) {

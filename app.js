@@ -11,6 +11,7 @@ import {
     renderHistory,
     showConfetti,
 } from './src/ui.js';
+import { renderEloChart } from './src/chart.js';
 
 // ================= KONFIGURATION =================
 
@@ -24,6 +25,12 @@ initApi(_cfg.SUPABASE_URL || '', _cfg.SUPABASE_ANON_KEY || '');
 // Tab-Navigation und Spielmodus werden direkt aus dem HTML aufgerufen.
 window.openTab      = openTab;
 window.showRanking  = showRankingTab;
+
+window.showChartType = (type) => {
+    document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.chart-tab[onclick*="${type}"]`)?.classList.add('active');
+    renderEloChart(type);
+};
 
 window.selectGameMode = (mode) => {
     state.currentGameMode = mode;
