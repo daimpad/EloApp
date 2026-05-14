@@ -6,4 +6,8 @@ var CONFIG = {
     // Supabase-Projekteinstellungen (unter Settings → API im Supabase-Dashboard)
     SUPABASE_URL:      'https://YOUR_PROJECT_ID.supabase.co',
     SUPABASE_ANON_KEY: 'YOUR_ANON_KEY_HERE',
+
+    // Schreib-Secret: muss mit dem Wert in der Supabase-RLS-Policy übereinstimmen.
+    // Wähle ein beliebiges Passwort und trage es auch in der Policy ein (siehe supabase/schema.sql).
+    APP_SECRET: 'YOUR_WRITE_SECRET_HERE',
 };
