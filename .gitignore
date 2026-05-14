@@ -1,0 +1,12 @@
+# Local configuration with real API URLs and secrets – never commit this
+config.js
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

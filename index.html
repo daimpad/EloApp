@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeedHennen 🏸🐔</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SpeedHennen 🏸🐔</h1>
+        </div>
+
+        <div class="status-area">
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+        </div>
+
+        <div class="tab-container">
+            <div class="tab active" onclick="openTab(this, 'add-match')">
+                <span class="emoji">🏸</span> Spiel eintragen
+            </div>
+            <div class="tab" onclick="openTab(this, 'rankings')">
+                <span class="emoji">🏅</span> Rangliste
+            </div>
+            <div class="tab" onclick="openTab(this, 'history')">
+                <span class="emoji">📜</span> Spielverlauf
+            </div>
+            <div class="tab" onclick="openTab(this, 'add-player')">
+                <span class="emoji">🐔</span> Neue Henne
+            </div>
+        </div>
+
+        <div id="add-match" class="tab-content active">
+            <h2><span class="emoji">🏸</span> Neues Spiel eintragen</h2>
+
+            <div class="game-mode-selector">
+                <button class="mode-button active" onclick="selectGameMode('singles')">Einzel</button>
+                <button class="mode-button" onclick="selectGameMode('doubles')">Doppel</button>
+            </div>
+
+            <!-- Einzel-Spiel Interface -->
+            <div id="singles-interface">
+                <div class="form-group">
+                    <label for="player-search">Henne suchen:</label>
+                    <input type="text" id="player-search" oninput="filterPlayers()" placeholder="Namen eingeben...">
+                </div>
+
+                <div class="player-list" id="playerList"></div>
+
+                <div class="form-group">
+                    <label for="winner">Gewinner:</label>
+                    <select id="winner">
+                        <option value="">-- Spieler auswählen --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="loser">Verlierer:</label>
+                    <select id="loser">
+                        <option value="">-- Spieler auswählen --</option>
+                    </select>
+                </div>
+
+                <button onclick="recordMatch()">Einzel-Spiel eintragen</button>
+            </div>
+
+            <!-- Doppel-Spiel Interface -->
+            <div id="doubles-interface" style="display: none;">
+                <div class="form-group">
+                    <label>Spieler für Teams auswählen:</label>
+                    <p style="color: #666; font-size: 14px;">Klicke auf die Spieler um sie den Teams zuzuordnen. Erste zwei Klicks = Team 1, nächste zwei = Team 2</p>
+                </div>
+
+                <div class="player-selection-grid" id="doublesPlayerGrid"></div>
+
+                <div class="team-selection">
+                    <div class="team" id="team1">
+                        <h3>Team 1</h3>
+                        <div class="team-players" id="team1-players">
+                            <div>Spieler 1: <span id="team1-player1">-</span></div>
+                            <div>Spieler 2: <span id="team1-player2">-</span></div>
+                        </div>
+                    </div>
+
+                    <div class="vs-indicator">VS</div>
+
+                    <div class="team" id="team2">
+                        <h3>Team 2</h3>
+                        <div class="team-players" id="team2-players">
+                            <div>Spieler 1: <span id="team2-player1">-</span></div>
+                            <div>Spieler 2: <span id="team2-player2">-</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="winning-team">Gewinnendes Team:</label>
+                    <select id="winning-team">
+                        <option value="">-- Team auswählen --</option>
+                        <option value="team1">Team 1</option>
+                        <option value="team2">Team 2</option>
+                    </select>
+                </div>
+
+                <button onclick="recordDoublesMatch()">Doppel-Spiel eintragen</button>
+                <button onclick="clearTeams()" style="background: #FF6B6B; margin-left: 10px;">Teams zurücksetzen</button>
+            </div>
+        </div>
+
+        <div id="add-player" class="tab-content">
+            <h2><span class="emoji">🐔</span> Neue Henne hinzufügen</h2>
+            <div class="form-group">
+                <label for="playerName">Vorname:</label>
+                <input type="text" id="playerName" placeholder="Vorname eingeben">
+            </div>
+            <button onclick="addPlayer()">Henne hinzufügen</button>
+        </div>
+
+        <div id="rankings" class="tab-content">
+            <h2><span class="emoji">🏅</span> Rangliste</h2>
+
+            <div class="ranking-tabs">
+                <button class="ranking-tab active" onclick="showRanking('singles')">Einzel</button>
+                <button class="ranking-tab" onclick="showRanking('doubles')">Doppel</button>
+            </div>
+
+            <div id="singles-ranking">
+                <table id="singlesRankingsTable">
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Spieler</th>
+                            <th>Einzel-Elo</th>
+                            <th>Spiele</th>
+                            <th>Siege</th>
+                            <th>Niederlagen</th>
+                        </tr>
+                    </thead>
+                    <tbody id="singlesRankingsBody"></tbody>
+                </table>
+            </div>
+
+            <div id="doubles-ranking" style="display: none;">
+                <table id="doublesRankingsTable">
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Spieler</th>
+                            <th>Doppel-Elo</th>
+                            <th>Spiele</th>
+                            <th>Siege</th>
+                            <th>Niederlagen</th>
+                        </tr>
+                    </thead>
+                    <tbody id="doublesRankingsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Lade-Overlay -->
+        <div id="chicken-loader" class="chicken-overlay" aria-live="polite" aria-label="Ladevorgang läuft...">
+            <div class="chicken-spinner"></div>
+        </div>
+
+        <div id="history" class="tab-content">
+            <h2><span class="emoji">📜</span> Spielverlauf</h2>
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Typ</th>
+                        <th>Gewinner</th>
+                        <th>Verlierer</th>
+                        <th>Elo-Änderung</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
