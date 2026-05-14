@@ -1,5 +1,16 @@
-import { K_FACTOR, STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './src/elo.js';
+import { STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './src/elo.js';
 import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch } from './src/api.js';
+import { state, persistPlayers, persistMatches, loadLocalPlayers, loadLocalMatches, recalculateStatsFromHistory } from './src/state.js';
+import {
+    showError, showSuccess, toggleLoading,
+    openTab, renderGameModeSwitch,
+    clearTeamDisplay, clearPlayerCardSelection,
+    renderPlayerDropdowns, renderPlayerList, filterPlayerList, highlightSinglesSelection,
+    renderDoublesGrid, updateTeamDisplay,
+    showRankingTab, renderRankings,
+    renderHistory,
+    showConfetti,
+} from './src/ui.js';
 
 // ================= KONFIGURATION =================
 
@@ -7,270 +18,98 @@ import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, create
 // Kopiere config.example.js → config.js und trage deine URL ein.
 initApi((typeof CONFIG !== 'undefined') ? CONFIG.GOOGLE_SHEETS_API_URL : '');
 
-// ================= GLOBALE VARIABLEN =================
+// ================= GLOBAL (HTML onclick-Attribute) =================
 
-const avatarEmojis = ["😎", "🤩", "🤓", "🤠", "👻", "🤖", "👽", "🦄", "🐱", "🐶", "🦊", "🦁", "🐯", "🐺", "🦝", "🐨", "🐼", "🐹", "🐰", "🦇", "🐝", "🐢", "🦖", "🐙", "🦋", "🦜", "🦢", "🦚", "🦉", "🦁", "🐌", "🦀", "🦞", "🦐", "🐠", "🐬", "🐳", "🦈", "🦭", "🐘", "🦏", "🦛", "🐪", "🦒", "🦘", "🦬", "🐂", "🐄", "🐎", "🦮", "🐕", "🐩", "🐈", "🦙", "🦌", "🐑", "🐐", "🐏", "🐖", "🐓", "🦃", "🦆", "🦅"];
+// Tab-Navigation und Spielmodus werden direkt aus dem HTML aufgerufen.
+window.openTab      = openTab;
+window.showRanking  = showRankingTab;
 
-let players = {};
-let matches = [];
-let selectedPlayers = [];
-let currentGameMode = 'singles';
-let isDataLoading = false;
-
-// ================= HAUPTFUNKTIONEN =================
-
-function openTab(element, tabName) {
-    const tabContents = document.getElementsByClassName('tab-content');
-    for (let i = 0; i < tabContents.length; i++) {
-        tabContents[i].classList.remove('active');
-    }
-
-    const tabs = document.getElementsByClassName('tab');
-    for (let i = 0; i < tabs.length; i++) {
-        tabs[i].classList.remove('active');
-    }
-
-    document.getElementById(tabName).classList.add('active');
-    element.classList.add('active');
-}
-
-function selectGameMode(mode) {
-    currentGameMode = mode;
-
-    document.querySelectorAll('.mode-button').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-
-    if (mode === 'singles') {
-        document.getElementById('singles-interface').style.display = 'block';
-        document.getElementById('doubles-interface').style.display = 'none';
-    } else {
-        document.getElementById('singles-interface').style.display = 'none';
-        document.getElementById('doubles-interface').style.display = 'block';
-        updateDoublesPlayerGrid();
-    }
-
+window.selectGameMode = (mode) => {
+    state.currentGameMode = mode;
+    renderGameModeSwitch(mode);
     clearSelections();
-}
+    if (mode === 'doubles') renderDoublesGrid(selectPlayerForDoubles);
+};
 
-function clearSelections() {
-    selectedPlayers = [];
-    document.querySelectorAll('.player-card').forEach(card => card.classList.remove('selected'));
-    document.querySelectorAll('.doubles-player-card').forEach(card => {
-        card.classList.remove('selected-team1', 'selected-team2');
-    });
-    clearTeams();
+window.clearTeams = clearSelections;
 
-    document.getElementById('winner').value = '';
-    document.getElementById('loser').value = '';
-    document.getElementById('winning-team').value = '';
-}
+window.filterPlayers = filterPlayerList;
 
-function clearTeams() {
-    selectedPlayers = [];
-    document.getElementById('team1-player1').textContent = '-';
-    document.getElementById('team1-player2').textContent = '-';
-    document.getElementById('team2-player1').textContent = '-';
-    document.getElementById('team2-player2').textContent = '-';
+window.recordMatch        = recordMatch;
+window.recordDoublesMatch = recordDoublesMatch;
+window.addPlayer          = addPlayer;
 
-    document.querySelectorAll('.doubles-player-card').forEach(card => {
-        card.classList.remove('selected-team1', 'selected-team2');
-    });
-
-    document.getElementById('team1').classList.remove('team-winner', 'team-loser');
-    document.getElementById('team2').classList.remove('team-winner', 'team-loser');
-    document.getElementById('winning-team').value = '';
-}
-
-function getAvatarEmoji(playerId) {
-    playerId = String(playerId || "");
-    if (!playerId) return "🐔";
-    const seed = playerId.charCodeAt(0) + playerId.charCodeAt(playerId.length - 1);
-    return avatarEmojis[seed % avatarEmojis.length];
-}
-
-function showError(message) {
-    const el = document.getElementById('errorMessage');
-    el.textContent = message;
-    el.style.display = 'block';
-    setTimeout(() => { el.style.display = 'none'; }, 5000);
-}
-
-function showSuccess(message) {
-    const el = document.getElementById('successMessage');
-    el.textContent = message;
-    el.style.display = 'block';
-    setTimeout(() => { el.style.display = 'none'; }, 5000);
-}
-
-function toggleLoading(show) {
-    const el = document.querySelector('.chicken-overlay');
-    if (!el) return;
-    el.style.display = show ? 'flex' : 'none';
-    el.style.opacity = show ? 1 : 0;
-}
-
-// ================= DATEN LADEN UND SPEICHERN =================
+// ================= INITIALISIERUNG =================
 
 window.onload = async function() {
-    if (!GOOGLE_SHEETS_API_URL) {
+    if (!(typeof CONFIG !== 'undefined' && CONFIG.GOOGLE_SHEETS_API_URL)) {
         showError('Keine API-URL konfiguriert. Bitte config.js anlegen (siehe config.example.js).');
     }
+
+    document.getElementById('winning-team').addEventListener('change', updateTeamDisplay);
+
     await loadPlayers();
     await loadMatches();
 };
 
+// ================= DATEN LADEN =================
+
 async function loadPlayers() {
     toggleLoading(true);
-    isDataLoading = true;
+    state.isDataLoading = true;
 
     try {
-        const localPlayers = localStorage.getItem('eloPlayers');
-        if (localPlayers) {
-            players = JSON.parse(localPlayers);
-            updatePlayerDropdowns();
-            updatePlayerList();
-            updateDoublesPlayerGrid();
-            updateRankings();
-        }
+        if (loadLocalPlayers()) renderAll();
 
-        players = await fetchPlayers();
+        state.players = await fetchPlayers();
 
-        Object.keys(players).forEach(id => {
-            if (!players[id].doublesElo) {
-                players[id].doublesElo     = STARTING_ELO;
-                players[id].doublesMatches = 0;
-                players[id].doublesWins    = 0;
-                players[id].doublesLosses  = 0;
+        Object.keys(state.players).forEach(id => {
+            if (!state.players[id].doublesElo) {
+                state.players[id].doublesElo     = STARTING_ELO;
+                state.players[id].doublesMatches = 0;
+                state.players[id].doublesWins    = 0;
+                state.players[id].doublesLosses  = 0;
             }
         });
 
-        localStorage.setItem('eloPlayers', JSON.stringify(players));
-        updatePlayerDropdowns();
-        updatePlayerList();
-        updateDoublesPlayerGrid();
-        updateRankings();
-        showSuccess("Spieler erfolgreich geladen!");
-    } catch (error) {
-        console.error("Netzwerkfehler:", error);
-        showError("Netzwerkfehler beim Laden der Spieler. Lokale Daten werden verwendet.");
+        persistPlayers();
+        renderAll();
+        showSuccess('Spieler erfolgreich geladen!');
+    } catch (err) {
+        console.error(err);
+        showError('Netzwerkfehler beim Laden der Spieler. Lokale Daten werden verwendet.');
     } finally {
-        isDataLoading = false;
+        state.isDataLoading = false;
         toggleLoading(false);
     }
 }
 
 async function loadMatches() {
     toggleLoading(true);
-    isDataLoading = true;
+    state.isDataLoading = true;
 
     try {
-        const localMatches = localStorage.getItem('eloMatches');
-        if (localMatches) {
-            matches = JSON.parse(localMatches);
+        if (loadLocalMatches()) {
             recalculateStatsFromHistory();
-            updateHistory();
+            renderHistory();
         }
 
-        matches = await fetchMatches();
-        localStorage.setItem('eloMatches', JSON.stringify(matches));
+        state.matches = await fetchMatches();
+        persistMatches();
         recalculateStatsFromHistory();
-        updateHistory();
-        updateRankings();
-        showSuccess("Spielverlauf erfolgreich geladen!");
-    } catch (error) {
-        console.error("Netzwerkfehler:", error);
-        showError("Netzwerkfehler beim Laden des Spielverlaufs. Lokale Daten werden verwendet.");
+        renderHistory();
+        renderRankings();
+        showSuccess('Spielverlauf erfolgreich geladen!');
+    } catch (err) {
+        console.error(err);
+        showError('Netzwerkfehler beim Laden des Spielverlaufs. Lokale Daten werden verwendet.');
     } finally {
-        isDataLoading = false;
+        state.isDataLoading = false;
         toggleLoading(false);
     }
 }
 
-function recalculateStatsFromHistory() {
-    Object.keys(players).forEach(id => {
-        players[id].elo           = STARTING_ELO;
-        players[id].matches       = 0;
-        players[id].wins          = 0;
-        players[id].losses        = 0;
-        players[id].doublesElo    = STARTING_ELO;
-        players[id].doublesMatches = 0;
-        players[id].doublesWins   = 0;
-        players[id].doublesLosses = 0;
-    });
-
-    const chronologicalMatches = [...matches].sort((a, b) =>
-        new Date(a.date || 0) - new Date(b.date || 0)
-    );
-
-    const getIds = (val) => {
-        const s = String(val || "").trim();
-        return s.includes(',') ? s.split(',').map(x => x.trim()) : [s];
-    };
-
-    chronologicalMatches.forEach(match => {
-        const rawType     = String(match.type     || "").toLowerCase();
-        const rawWinnerId = String(match.winnerId || "").toLowerCase();
-
-        const columnShifted = rawWinnerId.includes('doubles') || rawWinnerId.includes('singles');
-
-        let actualType = rawType;
-        if (columnShifted) actualType = rawWinnerId;
-
-        const isDoubles = actualType.includes('doubles') || String(match.winnerId).includes(',');
-
-        let wRaw, lRaw;
-        if (columnShifted) {
-            wRaw = match.loserId;
-            lRaw = match.winnerName;
-        } else {
-            wRaw = match.winnerId;
-            lRaw = match.loserId;
-        }
-
-        if (!isDoubles) {
-            const winnerId = String(wRaw || "").trim();
-            const loserId  = String(lRaw || "").trim();
-            const winner = players[winnerId];
-            const loser  = players[loserId];
-            if (!winner || !loser) return;
-
-            const result = calculateSinglesMatch(winner.elo, loser.elo);
-            winner.elo     = result.winnerElo;
-            winner.matches = (winner.matches || 0) + 1;
-            winner.wins    = (winner.wins    || 0) + 1;
-
-            loser.elo      = result.loserElo;
-            loser.matches  = (loser.matches  || 0) + 1;
-            loser.losses   = (loser.losses   || 0) + 1;
-        } else {
-            const winners = getIds(wRaw);
-            const losers  = getIds(lRaw);
-
-            if (winners.some(id => !players[id]) || losers.some(id => !players[id])) return;
-
-            const { eloChange } = calculateDoublesMatch(
-                winners.map(id => players[id].doublesElo),
-                losers.map(id => players[id].doublesElo)
-            );
-
-            winners.forEach(id => {
-                players[id].doublesElo     = (players[id].doublesElo     || STARTING_ELO) + eloChange;
-                players[id].doublesMatches = (players[id].doublesMatches || 0) + 1;
-                players[id].doublesWins    = (players[id].doublesWins    || 0) + 1;
-            });
-
-            losers.forEach(id => {
-                players[id].doublesElo     = (players[id].doublesElo     || STARTING_ELO) - eloChange;
-                players[id].doublesMatches = (players[id].doublesMatches || 0) + 1;
-                players[id].doublesLosses  = (players[id].doublesLosses  || 0) + 1;
-            });
-        }
-    });
-
-    localStorage.setItem('eloPlayers', JSON.stringify(players));
-}
-
-// ================= SPIELER VERWALTEN =================
+// ================= SPIELER HINZUFÜGEN =================
 
 async function addPlayer() {
     const playerName = document.getElementById('playerName').value.trim();
@@ -280,44 +119,33 @@ async function addPlayer() {
         return;
     }
 
-    for (const id in players) {
-        if (players[id].name.toLowerCase() === playerName.toLowerCase()) {
-            showError('Ein Spieler mit diesem Namen existiert bereits!');
-            return;
-        }
+    if (Object.values(state.players).some(p => p.name.toLowerCase() === playerName.toLowerCase())) {
+        showError('Ein Spieler mit diesem Namen existiert bereits!');
+        return;
     }
 
     const playerId = Date.now().toString();
-
-    players[playerId] = {
-        name: playerName,
-        elo: STARTING_ELO,
-        matches: 0,
-        wins: 0,
-        losses: 0,
-        doublesElo: STARTING_ELO,
-        doublesMatches: 0,
-        doublesWins: 0,
-        doublesLosses: 0
+    state.players[playerId] = {
+        name:          playerName,
+        elo:           STARTING_ELO,
+        matches:       0, wins: 0, losses: 0,
+        doublesElo:    STARTING_ELO,
+        doublesMatches: 0, doublesWins: 0, doublesLosses: 0,
     };
-
-    localStorage.setItem('eloPlayers', JSON.stringify(players));
+    persistPlayers();
     toggleLoading(true);
 
     try {
-        await createPlayer(playerId, players[playerId]);
+        await createPlayer(playerId, state.players[playerId]);
         showSuccess(`Spieler "${playerName}" wurde hinzugefügt!`);
         document.getElementById('playerName').value = '';
         showConfetti();
-    } catch (error) {
-        console.error("Netzwerkfehler:", error);
-        showError("Der Spieler wurde lokal gespeichert, konnte aber nicht mit Google Sheets synchronisiert werden.");
+    } catch (err) {
+        console.error(err);
+        showError('Spieler lokal gespeichert, aber nicht mit Google Sheets synchronisiert.');
     } finally {
         toggleLoading(false);
-        updatePlayerDropdowns();
-        updatePlayerList();
-        updateDoublesPlayerGrid();
-        updateRankings();
+        renderAll();
     }
 }
 
@@ -331,41 +159,33 @@ async function recordMatch() {
         showError('Bitte wähle Gewinner und Verlierer aus!');
         return;
     }
-
     if (winnerId === loserId) {
         showError('Gewinner und Verlierer können nicht derselbe Spieler sein!');
         return;
     }
 
-    const winner = players[winnerId];
-    const loser  = players[loserId];
-
+    const winner = state.players[winnerId];
+    const loser  = state.players[loserId];
     const result = calculateSinglesMatch(winner.elo, loser.elo);
-    winner.elo = result.winnerElo;
-    winner.matches++;
-    winner.wins++;
 
-    loser.elo = result.loserElo;
-    loser.matches++;
-    loser.losses++;
-
-    const eloDiff = result.eloChange;
+    winner.elo = result.winnerElo; winner.matches++; winner.wins++;
+    loser.elo  = result.loserElo;  loser.matches++;  loser.losses++;
 
     const match = {
-        date: new Date().toISOString(),
-        type: 'singles',
-        winnerId,
-        loserId,
-        winnerName: winner.name,
-        loserName: loser.name,
-        eloChange: eloDiff
+        date: new Date().toISOString(), type: 'singles',
+        winnerId, loserId,
+        winnerName: winner.name, loserName: loser.name,
+        eloChange: result.eloChange,
     };
 
-    await saveMatch(match, [winner, loser]);
+    await saveMatch(match, [
+        { id: winnerId, player: winner },
+        { id: loserId,  player: loser  },
+    ]);
 }
 
 async function recordDoublesMatch() {
-    if (selectedPlayers.length !== 4) {
+    if (state.selectedPlayers.length !== 4) {
         showError('Bitte wähle genau 4 Spieler für das Doppel aus!');
         return;
     }
@@ -376,396 +196,110 @@ async function recordDoublesMatch() {
         return;
     }
 
-    const team1 = [selectedPlayers[0], selectedPlayers[1]];
-    const team2 = [selectedPlayers[2], selectedPlayers[3]];
-
+    const [a, b, c, d] = state.selectedPlayers;
+    const team1 = [a, b];
+    const team2 = [c, d];
     const winners = winningTeam === 'team1' ? team1 : team2;
     const losers  = winningTeam === 'team1' ? team2 : team1;
 
     const { eloChange } = calculateDoublesMatch(
-        winners.map(id => players[id].doublesElo),
-        losers.map(id => players[id].doublesElo)
+        winners.map(id => state.players[id].doublesElo),
+        losers.map(id  => state.players[id].doublesElo),
     );
 
-    winners.forEach(playerId => {
-        players[playerId].doublesElo += eloChange;
-        players[playerId].doublesMatches++;
-        players[playerId].doublesWins++;
+    winners.forEach(id => {
+        state.players[id].doublesElo += eloChange;
+        state.players[id].doublesMatches++;
+        state.players[id].doublesWins++;
     });
-
-    losers.forEach(playerId => {
-        players[playerId].doublesElo -= eloChange;
-        players[playerId].doublesMatches++;
-        players[playerId].doublesLosses++;
+    losers.forEach(id => {
+        state.players[id].doublesElo -= eloChange;
+        state.players[id].doublesMatches++;
+        state.players[id].doublesLosses++;
     });
 
     const match = {
-        date: new Date().toISOString(),
-        type: 'doubles',
-        winnerId: winners.join(','),
-        loserId: losers.join(','),
-        winnerName: `${players[winners[0]].name} & ${players[winners[1]].name}`,
-        loserName:  `${players[losers[0]].name} & ${players[losers[1]].name}`,
-        eloChange
+        date: new Date().toISOString(), type: 'doubles',
+        winnerId:   winners.join(','),
+        loserId:    losers.join(','),
+        winnerName: `${state.players[winners[0]].name} & ${state.players[winners[1]].name}`,
+        loserName:  `${state.players[losers[0]].name} & ${state.players[losers[1]].name}`,
+        eloChange,
     };
 
-    const updatedPlayers = [...winners, ...losers].map(id => players[id]);
-    await saveMatch(match, updatedPlayers);
-    clearTeams();
+    await saveMatch(match, [...winners, ...losers].map(id => ({ id, player: state.players[id] })));
+    clearSelections();
 }
 
-async function saveMatch(match, updatedPlayers) {
-    matches.push(match);
-    localStorage.setItem('eloPlayers', JSON.stringify(players));
-    localStorage.setItem('eloMatches', JSON.stringify(matches));
-
+async function saveMatch(match, playerEntries) {
+    state.matches.push(match);
+    persistPlayers();
+    persistMatches();
     toggleLoading(true);
 
     try {
-        for (const player of updatedPlayers) {
-            const playerId = Object.keys(players).find(id => players[id] === player);
-            await updatePlayer(playerId, player);
+        for (const { id, player } of playerEntries) {
+            await updatePlayer(id, player);
         }
-
         await createMatch(match);
+
         const gameType = match.type === 'singles' ? 'Einzel' : 'Doppel';
         showSuccess(`🎉 ${gameType}-Match gespeichert! ${match.winnerName} gewinnt gegen ${match.loserName} (+${match.eloChange} Elo)`);
         showConfetti();
-    } catch (error) {
-        console.error("Netzwerkfehler:", error);
-        showError("Das Match wurde lokal gespeichert, konnte aber nicht mit Google Sheets synchronisiert werden.");
+    } catch (err) {
+        console.error(err);
+        showError('Match lokal gespeichert, aber nicht mit Google Sheets synchronisiert.');
     } finally {
         toggleLoading(false);
-        updateRankings();
-        updateHistory();
+        renderRankings();
+        renderHistory();
         clearSelections();
     }
 }
 
-// ================= UI-UPDATES =================
+// ================= HILFSFUNKTIONEN =================
 
-function updatePlayerDropdowns() {
-    const winnerSelect = document.getElementById('winner');
-    const loserSelect  = document.getElementById('loser');
-
-    winnerSelect.innerHTML = '<option value="">-- Spieler auswählen --</option>';
-    loserSelect.innerHTML  = '<option value="">-- Spieler auswählen --</option>';
-
-    const sortedPlayers = Object.entries(players).sort((a, b) =>
-        a[1].name.localeCompare(b[1].name)
-    );
-
-    for (const [id, player] of sortedPlayers) {
-        const winnerOption = document.createElement('option');
-        winnerOption.value = id;
-        winnerOption.textContent = player.name;
-        winnerSelect.appendChild(winnerOption);
-
-        const loserOption = document.createElement('option');
-        loserOption.value = id;
-        loserOption.textContent = player.name;
-        loserSelect.appendChild(loserOption);
-    }
-}
-
-function updatePlayerList() {
-    const playerList = document.getElementById('playerList');
-    playerList.innerHTML = '';
-
-    const sortedPlayers = Object.entries(players).sort((a, b) =>
-        a[1].name.localeCompare(b[1].name)
-    );
-
-    for (const [id, player] of sortedPlayers) {
-        const playerCard = document.createElement('div');
-        playerCard.className = 'player-card';
-        playerCard.setAttribute('data-id', id);
-
-        const avatar = document.createElement('div');
-        avatar.className = 'avatar';
-        avatar.textContent = getAvatarEmoji(id);
-
-        const name = document.createElement('div');
-        name.className = 'name';
-        name.textContent = player.name;
-
-        playerCard.appendChild(avatar);
-        playerCard.appendChild(name);
-        playerCard.addEventListener('click', () => selectPlayer(id));
-        playerList.appendChild(playerCard);
-    }
-}
-
-function updateDoublesPlayerGrid() {
-    const playerGrid = document.getElementById('doublesPlayerGrid');
-    playerGrid.innerHTML = '';
-
-    const sortedPlayers = Object.entries(players).sort((a, b) =>
-        a[1].name.localeCompare(b[1].name)
-    );
-
-    for (const [id, player] of sortedPlayers) {
-        const playerCard = document.createElement('div');
-        playerCard.className = 'doubles-player-card';
-        playerCard.setAttribute('data-id', id);
-
-        const avatar = document.createElement('div');
-        avatar.style.fontSize = '20px';
-        avatar.textContent = getAvatarEmoji(id);
-
-        const name = document.createElement('div');
-        name.style.marginTop = '5px';
-        name.style.fontSize = '14px';
-        name.textContent = player.name;
-
-        const eloInfo = document.createElement('div');
-        eloInfo.style.fontSize = '12px';
-        eloInfo.style.color = '#666';
-        eloInfo.textContent = `Doppel: ${player.doublesElo}`;
-
-        playerCard.appendChild(avatar);
-        playerCard.appendChild(name);
-        playerCard.appendChild(eloInfo);
-        playerCard.addEventListener('click', () => selectPlayerForDoubles(id));
-        playerGrid.appendChild(playerCard);
-    }
-}
-
-function filterPlayers() {
-    const searchText = document.getElementById('player-search').value.toLowerCase();
-    document.querySelectorAll('.player-card').forEach(card => {
-        const playerName = card.querySelector('.name').textContent.toLowerCase();
-        card.style.display = playerName.includes(searchText) ? 'block' : 'none';
-    });
-}
-
-function selectPlayer(id) {
-    const selectedCards = document.querySelectorAll('.player-card.selected');
-    const card = document.querySelector(`.player-card[data-id="${id}"]`);
-
-    if (card.classList.contains('selected')) {
-        card.classList.remove('selected');
-        return;
-    }
-
-    if (selectedCards.length >= 2) {
-        selectedCards[0].classList.remove('selected');
-    }
-
-    card.classList.add('selected');
-
-    const selectedCards2 = document.querySelectorAll('.player-card.selected');
-    if (selectedCards2.length === 1) {
-        document.getElementById('winner').value = selectedCards2[0].getAttribute('data-id');
-    } else if (selectedCards2.length === 2) {
-        document.getElementById('winner').value = selectedCards2[0].getAttribute('data-id');
-        document.getElementById('loser').value  = selectedCards2[1].getAttribute('data-id');
-    }
+function clearSelections() {
+    state.selectedPlayers = [];
+    clearPlayerCardSelection();
+    clearTeamDisplay();
 }
 
 function selectPlayerForDoubles(id) {
     const card = document.querySelector(`.doubles-player-card[data-id="${id}"]`);
 
-    if (selectedPlayers.includes(id)) {
-        selectedPlayers = selectedPlayers.filter(playerId => playerId !== id);
+    if (state.selectedPlayers.includes(id)) {
+        state.selectedPlayers = state.selectedPlayers.filter(p => p !== id);
         card.classList.remove('selected-team1', 'selected-team2');
     } else {
-        if (selectedPlayers.length >= 4) {
+        if (state.selectedPlayers.length >= 4) {
             showError('Es können maximal 4 Spieler ausgewählt werden!');
             return;
         }
-
-        selectedPlayers.push(id);
-        card.classList.add(selectedPlayers.length <= 2 ? 'selected-team1' : 'selected-team2');
+        state.selectedPlayers.push(id);
+        card.classList.add(state.selectedPlayers.length <= 2 ? 'selected-team1' : 'selected-team2');
     }
 
     updateTeamDisplay();
 }
 
-function updateTeamDisplay() {
-    document.getElementById('team1-player1').textContent = '-';
-    document.getElementById('team1-player2').textContent = '-';
-    document.getElementById('team2-player1').textContent = '-';
-    document.getElementById('team2-player2').textContent = '-';
+function selectPlayer(id) {
+    const card     = document.querySelector(`.player-card[data-id="${id}"]`);
+    const selected = [...document.querySelectorAll('.player-card.selected')];
 
-    if (selectedPlayers.length >= 1) document.getElementById('team1-player1').textContent = players[selectedPlayers[0]].name;
-    if (selectedPlayers.length >= 2) document.getElementById('team1-player2').textContent = players[selectedPlayers[1]].name;
-    if (selectedPlayers.length >= 3) document.getElementById('team2-player1').textContent = players[selectedPlayers[2]].name;
-    if (selectedPlayers.length >= 4) document.getElementById('team2-player2').textContent = players[selectedPlayers[3]].name;
-
-    const winningTeam = document.getElementById('winning-team').value;
-    const team1El = document.getElementById('team1');
-    const team2El = document.getElementById('team2');
-
-    team1El.classList.remove('team-winner', 'team-loser');
-    team2El.classList.remove('team-winner', 'team-loser');
-
-    if (winningTeam === 'team1') {
-        team1El.classList.add('team-winner');
-        team2El.classList.add('team-loser');
-    } else if (winningTeam === 'team2') {
-        team2El.classList.add('team-winner');
-        team1El.classList.add('team-loser');
-    }
-}
-
-document.getElementById('winning-team').addEventListener('change', updateTeamDisplay);
-
-function showRanking(type) {
-    document.querySelectorAll('.ranking-tab').forEach(tab => tab.classList.remove('active'));
-    event.target.classList.add('active');
-
-    if (type === 'singles') {
-        document.getElementById('singles-ranking').style.display = 'block';
-        document.getElementById('doubles-ranking').style.display = 'none';
+    if (card.classList.contains('selected')) {
+        card.classList.remove('selected');
     } else {
-        document.getElementById('singles-ranking').style.display = 'none';
-        document.getElementById('doubles-ranking').style.display = 'block';
+        if (selected.length >= 2) selected[0].classList.remove('selected');
+        card.classList.add('selected');
     }
 
-    updateRankings();
+    highlightSinglesSelection();
 }
 
-function updateRankings() {
-    updateSinglesRanking();
-    updateDoublesRanking();
-}
-
-function buildRankingRow(index, id, player, eloKey, matchesKey, winsKey, lossesKey) {
-    const row = document.createElement('tr');
-
-    const rankCell = document.createElement('td');
-    const rankSpan = document.createElement('span');
-    rankSpan.className = 'rank-badge';
-
-    if (index === 0)      rankSpan.classList.add('rank-1');
-    else if (index === 1) rankSpan.classList.add('rank-2');
-    else if (index === 2) rankSpan.classList.add('rank-3');
-    else                  rankSpan.style.backgroundColor = '#c51216';
-
-    rankSpan.textContent = index + 1;
-    rankCell.appendChild(rankSpan);
-    row.appendChild(rankCell);
-
-    const nameCell = document.createElement('td');
-    nameCell.innerHTML = `${getAvatarEmoji(id)} ${player.name}`;
-    row.appendChild(nameCell);
-
-    [player[eloKey], player[matchesKey], player[winsKey], player[lossesKey]].forEach(val => {
-        const td = document.createElement('td');
-        td.textContent = val;
-        row.appendChild(td);
-    });
-
-    return row;
-}
-
-function updateSinglesRanking() {
-    const body = document.getElementById('singlesRankingsBody');
-    body.innerHTML = '';
-
-    Object.entries(players)
-        .sort((a, b) => b[1].elo - a[1].elo)
-        .forEach(([id, player], index) => {
-            body.appendChild(buildRankingRow(index, id, player, 'elo', 'matches', 'wins', 'losses'));
-        });
-}
-
-function updateDoublesRanking() {
-    const body = document.getElementById('doublesRankingsBody');
-    body.innerHTML = '';
-
-    Object.entries(players)
-        .sort((a, b) => b[1].doublesElo - a[1].doublesElo)
-        .forEach(([id, player], index) => {
-            body.appendChild(buildRankingRow(index, id, player, 'doublesElo', 'doublesMatches', 'doublesWins', 'doublesLosses'));
-        });
-}
-
-function updateHistory() {
-    const historyBody = document.getElementById('historyBody');
-    historyBody.innerHTML = '';
-
-    const sortedMatches = [...matches].sort((a, b) =>
-        new Date(b.date || 0) - new Date(a.date || 0)
-    );
-
-    const getPlayerDisplay = (idString) => {
-        const ids = String(idString || "").split(',').map(s => s.trim());
-        const parts = ids.map(id => {
-            const player = players[id];
-            return `${getAvatarEmoji(id)} ${player ? player.name : 'Unbekannt'}`;
-        });
-        return parts.length > 1
-            ? `<div class="team-display">${parts.join(' & ')}</div>`
-            : parts[0];
-    };
-
-    sortedMatches.forEach(match => {
-        const row = document.createElement('tr');
-
-        let displayDate     = match.date;
-        let displayType     = match.type;
-        let displayWinnerId = match.winnerId;
-        let displayLoserId  = match.loserId;
-        let displayElo      = match.eloChange;
-
-        const winnerIsType = String(match.winnerId).toLowerCase().includes('singles') ||
-                             String(match.winnerId).toLowerCase().includes('doubles');
-
-        if (winnerIsType) {
-            displayType     = match.winnerId;
-            displayWinnerId = match.loserId;
-            displayLoserId  = match.winnerName;
-            if (!displayElo) displayElo = 0;
-        }
-
-        const dateCell = document.createElement('td');
-        const matchDate = new Date(displayDate);
-        dateCell.textContent = isNaN(matchDate.getTime())
-            ? '-'
-            : matchDate.toLocaleDateString() + ' ' + matchDate.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-        row.appendChild(dateCell);
-
-        const typeCell = document.createElement('td');
-        const isSingles = String(displayType).toLowerCase().includes('singles');
-        const typeSpan = document.createElement('span');
-        typeSpan.className = `match-type-indicator match-${isSingles ? 'singles' : 'doubles'}`;
-        typeSpan.textContent = isSingles ? 'Einzel' : 'Doppel';
-        typeCell.appendChild(typeSpan);
-        row.appendChild(typeCell);
-
-        const winnerCell = document.createElement('td');
-        winnerCell.innerHTML = getPlayerDisplay(displayWinnerId);
-        row.appendChild(winnerCell);
-
-        const loserCell = document.createElement('td');
-        loserCell.innerHTML = getPlayerDisplay(displayLoserId);
-        row.appendChild(loserCell);
-
-        const eloChangeCell = document.createElement('td');
-        eloChangeCell.className = 'elo-positive';
-        eloChangeCell.textContent = '+' + (displayElo ?? 0);
-        row.appendChild(eloChangeCell);
-
-        historyBody.appendChild(row);
-    });
-}
-
-// ================= KONFETTI =================
-
-function showConfetti() {
-    const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#c51216'];
-
-    document.querySelectorAll('.confetti').forEach(c => c.remove());
-
-    for (let i = 0; i < 100; i++) {
-        const confetti = document.createElement('div');
-        confetti.className = 'confetti';
-        confetti.style.left = Math.random() * 100 + 'vw';
-        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        confetti.style.animationDuration = (Math.random() * 3 + 2) + 's';
-        document.body.appendChild(confetti);
-        setTimeout(() => confetti.remove(), 5000);
-    }
+function renderAll() {
+    renderPlayerDropdowns();
+    renderPlayerList(selectPlayer);
+    renderDoublesGrid(selectPlayerForDoubles);
+    renderRankings();
 }
