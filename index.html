@@ -131,35 +131,39 @@
             </div>
 
             <div id="singles-ranking">
-                <table id="singlesRankingsTable">
-                    <thead>
-                        <tr>
-                            <th>Rang</th>
-                            <th>Spieler</th>
-                            <th>Einzel-Elo</th>
-                            <th>Spiele</th>
-                            <th>Siege</th>
-                            <th>Niederlagen</th>
-                        </tr>
-                    </thead>
-                    <tbody id="singlesRankingsBody"></tbody>
-                </table>
+                <div class="table-scroll">
+                    <table id="singlesRankingsTable">
+                        <thead>
+                            <tr>
+                                <th>Rang</th>
+                                <th>Spieler</th>
+                                <th>Einzel-Elo</th>
+                                <th>Spiele</th>
+                                <th>Siege</th>
+                                <th>Niederlagen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="singlesRankingsBody"></tbody>
+                    </table>
+                </div>
             </div>
 
             <div id="doubles-ranking" style="display: none;">
-                <table id="doublesRankingsTable">
-                    <thead>
-                        <tr>
-                            <th>Rang</th>
-                            <th>Spieler</th>
-                            <th>Doppel-Elo</th>
-                            <th>Spiele</th>
-                            <th>Siege</th>
-                            <th>Niederlagen</th>
-                        </tr>
-                    </thead>
-                    <tbody id="doublesRankingsBody"></tbody>
-                </table>
+                <div class="table-scroll">
+                    <table id="doublesRankingsTable">
+                        <thead>
+                            <tr>
+                                <th>Rang</th>
+                                <th>Spieler</th>
+                                <th>Doppel-Elo</th>
+                                <th>Spiele</th>
+                                <th>Siege</th>
+                                <th>Niederlagen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="doublesRankingsBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -181,6 +185,7 @@
 
         <div id="history" class="tab-content">
             <h2><span class="emoji">📜</span> Spielverlauf</h2>
+            <div class="table-scroll">
             <table id="historyTable">
                 <thead>
                     <tr>
@@ -194,6 +199,7 @@
                 </thead>
                 <tbody id="historyBody"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -227,6 +233,7 @@
                 <canvas id="profileChart"></canvas>
             </div>
             <h3 style="margin:0 0 10px">Letzte Spiele</h3>
+            <div class="table-scroll">
             <table id="profile-history-table">
                 <thead>
                     <tr>
@@ -239,6 +246,7 @@
                 </thead>
                 <tbody id="profile-history-body"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
