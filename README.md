@@ -1,4 +1,4 @@
-# SpeedHennen 🏸🐔 – ELO-Ranking App
+# 🏸ELO-Ranking App
 
 Badminton ELO-Tracking für Einzel- und Doppelspiele mit Google Sheets als Backend.
 
