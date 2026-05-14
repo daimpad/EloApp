@@ -3,63 +3,91 @@ import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, create
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────
 
-/** Simuliert eine erfolgreiche fetch-Antwort mit JSON-Body. */
-function mockFetch(body) {
+function mockFetch(body, status = 200) {
     return vi.fn().mockResolvedValue({
-        ok: true,
+        ok:     status < 400,
+        status,
+        statusText: status === 204 ? 'No Content' : 'OK',
         json: () => Promise.resolve(body),
     });
 }
 
-/** Simuliert eine erfolgreiche fetch-Antwort mit data.success = false. */
-function mockFetchFailure(message = 'Serverfehler') {
-    return mockFetch({ success: false, message });
+function mockFetch204() {
+    return vi.fn().mockResolvedValue({ ok: true, status: 204, json: () => Promise.resolve(null) });
 }
 
-/** Simuliert einen HTTP-Fehler (z.B. 500). */
-function mockFetchHttpError(status = 500, statusText = 'Internal Server Error') {
-    return vi.fn().mockResolvedValue({ ok: false, status, statusText });
+function mockFetchError(status, message = 'Fehler') {
+    return vi.fn().mockResolvedValue({
+        ok: false, status, statusText: 'Error',
+        json: () => Promise.resolve({ message }),
+    });
 }
 
-/** Simuliert einen Netzwerkausfall. */
 function mockFetchNetworkError() {
     return vi.fn().mockRejectedValue(new Error('Network Error'));
 }
 
-const BASE_URL = 'https://example.com/api';
+const BASE_URL = 'https://example.supabase.co';
+const ANON_KEY = 'test-anon-key';
+
+// Beispiel-DB-Zeilen (snake_case, wie Supabase sie liefert)
+const playerRow = {
+    id: '1', name: 'Anna', elo: 1050, matches: 5, wins: 3, losses: 2,
+    doubles_elo: 1020, doubles_matches: 2, doubles_wins: 1, doubles_losses: 1,
+    created_at: '2025-01-01T00:00:00Z',
+};
+const matchRow = {
+    id: 1, date: '2025-05-01T12:00:00Z', type: 'singles',
+    winner_id: '1', loser_id: '2',
+    winner_name: 'Anna', loser_name: 'Ben',
+    elo_change: 16, created_at: '2025-05-01T12:00:00Z',
+};
 
 beforeEach(() => {
-    initApi(BASE_URL);
+    initApi(BASE_URL, ANON_KEY);
 });
 
 // ── fetchPlayers ───────────────────────────────────────────────────────────
 
 describe('fetchPlayers', () => {
-    it('gibt das players-Objekt zurück bei Erfolg', async () => {
-        const players = { '1': { name: 'Anna', elo: 1050 } };
-        vi.stubGlobal('fetch', mockFetch({ success: true, players }));
+    it('transformiert DB-Zeilen in das App-Format { [id]: player }', async () => {
+        vi.stubGlobal('fetch', mockFetch([playerRow]));
 
         const result = await fetchPlayers();
-        expect(result).toEqual(players);
+
+        expect(result).toEqual({
+            '1': {
+                name: 'Anna', elo: 1050, matches: 5, wins: 3, losses: 2,
+                doublesElo: 1020, doublesMatches: 2, doublesWins: 1, doublesLosses: 1,
+            },
+        });
     });
 
-    it('ruft die korrekte URL auf', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true, players: {} }));
+    it('gibt leeres Objekt zurück wenn keine Spieler vorhanden', async () => {
+        vi.stubGlobal('fetch', mockFetch([]));
+        expect(await fetchPlayers()).toEqual({});
+    });
+
+    it('sendet API-Key im Header', async () => {
+        vi.stubGlobal('fetch', mockFetch([]));
         await fetchPlayers();
 
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('action=getPlayers');
-        expect(calledUrl).toContain(BASE_URL);
+        const calledHeaders = vi.mocked(fetch).mock.calls[0][1].headers;
+        expect(calledHeaders.apikey).toBe(ANON_KEY);
+        expect(calledHeaders.Authorization).toBe(`Bearer ${ANON_KEY}`);
     });
 
-    it('wirft bei data.success = false', async () => {
-        vi.stubGlobal('fetch', mockFetchFailure('Keine Berechtigung'));
+    it('fragt den players-Endpoint ab', async () => {
+        vi.stubGlobal('fetch', mockFetch([]));
+        await fetchPlayers();
+
+        const url = vi.mocked(fetch).mock.calls[0][0];
+        expect(url).toContain(`${BASE_URL}/rest/v1/players`);
+    });
+
+    it('wirft bei HTTP-Fehler mit der Server-Meldung', async () => {
+        vi.stubGlobal('fetch', mockFetchError(403, 'Keine Berechtigung'));
         await expect(fetchPlayers()).rejects.toThrow('Keine Berechtigung');
-    });
-
-    it('wirft bei HTTP-Fehler', async () => {
-        vi.stubGlobal('fetch', mockFetchHttpError(503, 'Service Unavailable'));
-        await expect(fetchPlayers()).rejects.toThrow('HTTP 503');
     });
 
     it('wirft bei Netzwerkausfall', async () => {
@@ -71,25 +99,30 @@ describe('fetchPlayers', () => {
 // ── fetchMatches ───────────────────────────────────────────────────────────
 
 describe('fetchMatches', () => {
-    it('gibt das matches-Array zurück bei Erfolg', async () => {
-        const matches = [{ date: '2025-01-01', winnerId: '1', loserId: '2' }];
-        vi.stubGlobal('fetch', mockFetch({ success: true, matches }));
+    it('transformiert DB-Zeilen in das App-Format (camelCase)', async () => {
+        vi.stubGlobal('fetch', mockFetch([matchRow]));
 
         const result = await fetchMatches();
-        expect(result).toEqual(matches);
+
+        expect(result).toEqual([{
+            date: '2025-05-01T12:00:00Z', type: 'singles',
+            winnerId: '1', loserId: '2',
+            winnerName: 'Anna', loserName: 'Ben',
+            eloChange: 16,
+        }]);
     });
 
-    it('ruft die korrekte URL auf', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true, matches: [] }));
+    it('gibt leeres Array zurück wenn keine Matches vorhanden', async () => {
+        vi.stubGlobal('fetch', mockFetch([]));
+        expect(await fetchMatches()).toEqual([]);
+    });
+
+    it('fragt den matches-Endpoint ab', async () => {
+        vi.stubGlobal('fetch', mockFetch([]));
         await fetchMatches();
 
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('action=getMatches');
-    });
-
-    it('wirft bei data.success = false', async () => {
-        vi.stubGlobal('fetch', mockFetchFailure('Tabelle nicht gefunden'));
-        await expect(fetchMatches()).rejects.toThrow('Tabelle nicht gefunden');
+        const url = vi.mocked(fetch).mock.calls[0][0];
+        expect(url).toContain(`${BASE_URL}/rest/v1/matches`);
     });
 });
 
@@ -101,28 +134,32 @@ describe('createPlayer', () => {
         doublesElo: 1000, doublesMatches: 0, doublesWins: 0, doublesLosses: 0,
     };
 
-    it('sendet alle Spieler-Felder an die API', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true }));
+    it('sendet POST an /players mit snake_case-Feldern', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
         await createPlayer('42', player);
 
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('action=addPlayer');
-        expect(calledUrl).toContain('id=42');
-        expect(calledUrl).toContain('name=Ben');
-        expect(calledUrl).toContain('elo=1000');
-        expect(calledUrl).toContain('doublesElo=1000');
+        const [url, opts] = vi.mocked(fetch).mock.calls[0];
+        const body = JSON.parse(opts.body);
+
+        expect(url).toContain('/rest/v1/players');
+        expect(opts.method).toBe('POST');
+        expect(body.id).toBe('42');
+        expect(body.name).toBe('Ben');
+        expect(body.doubles_elo).toBe(1000);
+        expect(body.doubles_matches).toBe(0);
     });
 
-    it('URL-kodiert Sonderzeichen im Namen', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true }));
-        await createPlayer('99', { ...player, name: 'Müller & Co' });
+    it('mappt camelCase korrekt auf snake_case', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
+        await createPlayer('1', { ...player, doublesWins: 3, doublesLosses: 2 });
 
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('M%C3%BCller');
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body.doubles_wins).toBe(3);
+        expect(body.doubles_losses).toBe(2);
     });
 
-    it('wirft bei data.success = false', async () => {
-        vi.stubGlobal('fetch', mockFetchFailure('Duplikat'));
+    it('wirft bei HTTP-Fehler', async () => {
+        vi.stubGlobal('fetch', mockFetchError(409, 'Duplikat'));
         await expect(createPlayer('42', player)).rejects.toThrow('Duplikat');
     });
 });
@@ -135,15 +172,23 @@ describe('updatePlayer', () => {
         doublesElo: 1020, doublesMatches: 2, doublesWins: 1, doublesLosses: 1,
     };
 
-    it('sendet action=updatePlayer mit der korrekten ID', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true }));
+    it('sendet PATCH an /players?id=eq.{id}', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
         await updatePlayer('7', player);
 
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('action=updatePlayer');
-        expect(calledUrl).toContain('id=7');
-        expect(calledUrl).toContain('elo=1080');
-        expect(calledUrl).toContain('doublesElo=1020');
+        const [url, opts] = vi.mocked(fetch).mock.calls[0];
+        expect(url).toContain('/rest/v1/players?id=eq.7');
+        expect(opts.method).toBe('PATCH');
+    });
+
+    it('enthält aktualisierte Statistiken im Body', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
+        await updatePlayer('7', player);
+
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body.elo).toBe(1080);
+        expect(body.doubles_elo).toBe(1020);
+        expect(body.doubles_wins).toBe(1);
     });
 
     it('wirft bei Netzwerkausfall', async () => {
@@ -156,53 +201,39 @@ describe('updatePlayer', () => {
 
 describe('createMatch', () => {
     const match = {
-        date: '2025-05-01T12:00:00.000Z',
-        type: 'singles',
-        winnerId: '1',
-        loserId: '2',
-        winnerName: 'Anna',
-        loserName: 'Ben',
+        date: '2025-05-01T12:00:00.000Z', type: 'singles',
+        winnerId: '1', loserId: '2',
+        winnerName: 'Anna', loserName: 'Ben',
         eloChange: 16,
     };
 
-    it('sendet alle Match-Felder an die API', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true }));
+    it('sendet POST an /matches mit snake_case-Feldern', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
         await createMatch(match);
 
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('action=addMatch');
-        expect(calledUrl).toContain('type=singles');
-        expect(calledUrl).toContain('winnerId=1');
-        expect(calledUrl).toContain('loserId=2');
-        expect(calledUrl).toContain('eloChange=16');
-    });
+        const [url, opts] = vi.mocked(fetch).mock.calls[0];
+        const body = JSON.parse(opts.body);
 
-    it('URL-kodiert Spielernamen mit Sonderzeichen', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true }));
-        await createMatch({ ...match, winnerName: 'Anna & Bob' });
-
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('Anna+%26+Bob');
+        expect(url).toContain('/rest/v1/matches');
+        expect(opts.method).toBe('POST');
+        expect(body.winner_id).toBe('1');
+        expect(body.loser_id).toBe('2');
+        expect(body.winner_name).toBe('Anna');
+        expect(body.elo_change).toBe(16);
     });
 
     it('sendet Doppel-Match korrekt (IDs mit Komma)', async () => {
-        vi.stubGlobal('fetch', mockFetch({ success: true }));
-        await createMatch({
-            ...match,
-            type: 'doubles',
-            winnerId: '1,2',
-            loserId: '3,4',
-            winnerName: 'Anna & Ben',
-            loserName: 'Clara & Dan',
-        });
+        vi.stubGlobal('fetch', mockFetch204());
+        await createMatch({ ...match, type: 'doubles', winnerId: '1,2', loserId: '3,4' });
 
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain('type=doubles');
-        expect(calledUrl).toContain('winnerId=1%2C2');
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body.type).toBe('doubles');
+        expect(body.winner_id).toBe('1,2');
+        expect(body.loser_id).toBe('3,4');
     });
 
-    it('wirft bei data.success = false', async () => {
-        vi.stubGlobal('fetch', mockFetchFailure('Schreibfehler'));
+    it('wirft bei HTTP-Fehler', async () => {
+        vi.stubGlobal('fetch', mockFetchError(500, 'Schreibfehler'));
         await expect(createMatch(match)).rejects.toThrow('Schreibfehler');
     });
 });
@@ -210,16 +241,22 @@ describe('createMatch', () => {
 // ── initApi ────────────────────────────────────────────────────────────────
 
 describe('initApi', () => {
-    it('verwendet die neue URL nach erneutem initApi-Aufruf', async () => {
-        const newUrl = 'https://other-backend.example.com/api';
-        initApi(newUrl);
-        vi.stubGlobal('fetch', mockFetch({ success: true, players: {} }));
-
+    it('entfernt abschließenden Slash aus der URL', async () => {
+        initApi('https://example.supabase.co/', ANON_KEY);
+        vi.stubGlobal('fetch', mockFetch([]));
         await fetchPlayers();
-        const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-        expect(calledUrl).toContain(newUrl);
 
-        // Zurücksetzen für andere Tests
-        initApi(BASE_URL);
+        const url = vi.mocked(fetch).mock.calls[0][0];
+        expect(url).not.toContain('//rest');
+    });
+
+    it('verwendet die neue URL nach erneutem initApi-Aufruf', async () => {
+        const newUrl = 'https://other.supabase.co';
+        initApi(newUrl, ANON_KEY);
+        vi.stubGlobal('fetch', mockFetch([]));
+        await fetchPlayers();
+
+        expect(vi.mocked(fetch).mock.calls[0][0]).toContain(newUrl);
+        initApi(BASE_URL, ANON_KEY);
     });
 });
