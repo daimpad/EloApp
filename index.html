@@ -197,6 +197,51 @@
         </div>
     </div>
 
+    <!-- Spieler-Profil Modal -->
+    <div id="player-profile-modal" class="modal-overlay" style="display:none" onclick="closeProfileModal(event)">
+        <div class="modal-card" id="profile-card">
+            <button class="modal-close" onclick="closePlayerProfile()">✕</button>
+            <div class="profile-header">
+                <div class="profile-avatar" id="profile-avatar"></div>
+                <div>
+                    <h2 class="profile-name" id="profile-name"></h2>
+                </div>
+            </div>
+            <div class="profile-stats">
+                <div class="stat-box">
+                    <div class="stat-label">Einzel-ELO</div>
+                    <div class="stat-value" id="profile-singles-elo"></div>
+                    <div class="stat-sub" id="profile-singles-record"></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Doppel-ELO</div>
+                    <div class="stat-value" id="profile-doubles-elo"></div>
+                    <div class="stat-sub" id="profile-doubles-record"></div>
+                </div>
+            </div>
+            <div class="profile-chart-tabs">
+                <button class="profile-chart-tab active" data-type="singles">Einzel</button>
+                <button class="profile-chart-tab" data-type="doubles">Doppel</button>
+            </div>
+            <div class="chart-container" style="margin-bottom:20px">
+                <canvas id="profileChart"></canvas>
+            </div>
+            <h3 style="margin:0 0 10px">Letzte Spiele</h3>
+            <table id="profile-history-table">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Typ</th>
+                        <th>Gegner</th>
+                        <th>Ergebnis</th>
+                        <th>Elo</th>
+                    </tr>
+                </thead>
+                <tbody id="profile-history-body"></tbody>
+            </table>
+        </div>
+    </div>
+
     <script src="config.js"></script>
     <script type="module" src="app.js"></script>
 </body>

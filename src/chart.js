@@ -78,6 +78,85 @@ export function buildEloHistory(type = 'singles') {
 // ── Chart rendern ──────────────────────────────────────────────────────────
 
 let chartInstance = null;
+let profileChartInstance = null;
+
+/**
+ * Renders a single-player ELO trend chart inside the profile modal.
+ * @param {string} playerId
+ * @param {'singles'|'doubles'} type
+ */
+export function renderPlayerChart(playerId, type = 'singles') {
+    const canvas = document.getElementById('profileChart');
+    if (!canvas) return;
+
+    if (profileChartInstance) {
+        profileChartInstance.destroy();
+        profileChartInstance = null;
+    }
+
+    const history = buildEloHistory(type);
+    const points  = history[playerId] || [];
+
+    if (points.length === 0) {
+        canvas.parentElement.innerHTML =
+            '<p style="text-align:center;color:#999;padding:20px">Noch keine Spiele in diesem Modus.</p>';
+        return;
+    }
+
+    const color = '#c51216';
+    const data  = [
+        { x: 0, y: STARTING_ELO, date: null },
+        ...points.map(p => ({ x: p.matchIndex, y: p.elo, date: p.date })),
+    ];
+
+    profileChartInstance = new Chart(canvas, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'ELO',
+                data,
+                borderColor:      color,
+                backgroundColor:  color + '22',
+                borderWidth:      2,
+                pointRadius:      4,
+                pointHoverRadius: 6,
+                tension:          0.3,
+                fill:             true,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title(items) {
+                            const raw = items[0]?.raw;
+                            if (!raw?.date) return 'Start';
+                            const d = new Date(raw.date);
+                            return isNaN(d.getTime()) ? 'Start' :
+                                d.toLocaleDateString() + ' ' +
+                                d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        },
+                        label(item) { return ` ${item.raw.y} ELO`; },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Match' },
+                    ticks: { stepSize: 1, precision: 0 },
+                },
+                y: {
+                    title: { display: true, text: 'ELO' },
+                    suggestedMin: STARTING_ELO - 100,
+                },
+            },
+        },
+    });
+}
 
 export function renderEloChart(type = 'singles') {
     const canvas = document.getElementById('eloChart');

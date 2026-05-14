@@ -9,9 +9,10 @@ import {
     renderDoublesGrid, updateTeamDisplay,
     showRankingTab, renderRankings,
     renderHistory,
+    openPlayerProfile, closePlayerProfile,
     showConfetti,
 } from './src/ui.js';
-import { renderEloChart } from './src/chart.js';
+import { renderEloChart, renderPlayerChart } from './src/chart.js';
 
 // ================= KONFIGURATION =================
 
@@ -30,6 +31,14 @@ window.showChartType = (type) => {
     document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
     document.querySelector(`.chart-tab[onclick*="${type}"]`)?.classList.add('active');
     renderEloChart(type);
+};
+
+window.closePlayerProfile = closePlayerProfile;
+
+window.closeProfileModal = (event) => {
+    if (event.target === document.getElementById('player-profile-modal')) {
+        closePlayerProfile();
+    }
 };
 
 window.selectGameMode = (mode) => {
@@ -106,7 +115,7 @@ async function loadMatches() {
         persistMatches();
         recalculateStatsFromHistory();
         renderHistory(removeMatch);
-        renderRankings();
+        renderRankings(openProfileModal);
         showSuccess('Spielverlauf erfolgreich geladen!');
     } catch (err) {
         console.error(err);
@@ -259,7 +268,7 @@ async function saveMatch(match, playerEntries) {
         showError('Match lokal gespeichert, aber nicht mit Google Sheets synchronisiert.');
     } finally {
         toggleLoading(false);
-        renderRankings();
+        renderRankings(openProfileModal);
         renderHistory(removeMatch);
         clearSelections();
     }
@@ -286,7 +295,7 @@ async function removeMatch(id) {
         );
 
         persistPlayers();
-        renderRankings();
+        renderRankings(openProfileModal);
         renderHistory(removeMatch);
         showSuccess('Match gelöscht und ELO-Werte neu berechnet.');
     } catch (err) {
@@ -295,6 +304,13 @@ async function removeMatch(id) {
     } finally {
         toggleLoading(false);
     }
+}
+
+// ================= SPIELER-PROFIL =================
+
+function openProfileModal(playerId) {
+    openPlayerProfile(playerId, (id, type) => renderPlayerChart(id, type));
+    renderPlayerChart(playerId, 'singles');
 }
 
 // ================= HILFSFUNKTIONEN =================
@@ -341,5 +357,5 @@ function renderAll() {
     renderPlayerDropdowns();
     renderPlayerList(selectPlayer);
     renderDoublesGrid(selectPlayerForDoubles);
-    renderRankings();
+    renderRankings(openProfileModal);
 }
