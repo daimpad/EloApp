@@ -41,6 +41,9 @@ async function request(path, options = {}) {
     });
 
     if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            throw new Error('Zugriff verweigert. Bitte APP_SECRET in config.js prüfen.');
+        }
         const body = await response.json().catch(() => ({}));
         throw new Error(body.message || `HTTP ${response.status}: ${response.statusText}`);
     }

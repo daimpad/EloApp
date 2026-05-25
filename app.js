@@ -133,7 +133,8 @@ async function loadMatches() {
 
         state.matches = await fetchMatches();
         persistMatches();
-        recalculateStatsFromHistory();
+        const skipped = recalculateStatsFromHistory();
+        if (skipped > 0) showError(`${skipped} Match(es) konnten nicht berechnet werden (unbekannte Spieler-IDs).`);
         renderHistory(removeMatch);
         renderRankings(openProfileModal);
         showSuccess('Spielverlauf erfolgreich geladen!');
@@ -188,7 +189,7 @@ async function addPlayer() {
         showConfetti();
     } catch (err) {
         console.error(err);
-        showError('Spieler lokal gespeichert, aber nicht mit Google Sheets synchronisiert.');
+        showError('Spieler lokal gespeichert, aber nicht mit Supabase synchronisiert.');
     } finally {
         toggleLoading(false);
         renderAll();
@@ -306,7 +307,7 @@ async function saveMatch(match, playerEntries) {
         showConfetti();
     } catch (err) {
         console.error(err);
-        showError('Match lokal gespeichert, aber nicht mit Google Sheets synchronisiert.');
+        showError('Match lokal gespeichert, aber nicht mit Supabase synchronisiert.');
     } finally {
         toggleLoading(false);
         renderRankings(openProfileModal);
