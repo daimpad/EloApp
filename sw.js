@@ -1,4 +1,4 @@
-const CACHE = 'speedhennen-v2';
+const CACHE = 'speedhennen-v3';
 
 const STATIC_ASSETS = [
     './',
@@ -12,6 +12,7 @@ const STATIC_ASSETS = [
     './src/chart.js',
     './src/demo.js',
     './src/streaks.js',
+    './src/branding.js',
     './icons/icon-192.svg',
     './icons/icon-512.svg',
     'https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;700&display=swap',
