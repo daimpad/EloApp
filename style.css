@@ -1,3 +1,14 @@
+/* ================= BRAND TOKENS ================= */
+/* Werden per JS aus config.js überschrieben (BRANDING-Objekt). */
+
+:root {
+    --brand-primary:      #c51216;
+    --brand-primary-dark: #a30f12;
+    --brand-primary-glow: rgba(197, 18, 22, 0.3);
+    --brand-font-heading: 'Fredoka One', cursive;
+    --brand-font-body:    'Quicksand', sans-serif;
+}
+
 /* ================= BASE ================= */
 
 *, *::before, *::after {
@@ -5,7 +16,7 @@
 }
 
 body {
-    font-family: 'Quicksand', sans-serif;
+    font-family: var(--brand-font-body);
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     min-height: 100vh;
     margin: 0;
@@ -29,9 +40,9 @@ body {
 }
 
 .header h1 {
-    font-family: 'Fredoka One', cursive;
+    font-family: var(--brand-font-heading);
     font-size: 2.5em;
-    color: #c51216;
+    color: var(--brand-primary);
     margin: 0;
 }
 
@@ -86,9 +97,9 @@ body {
 }
 
 .tab.active {
-    background: #c51216;
+    background: var(--brand-primary);
     color: white;
-    box-shadow: 0 4px 15px rgba(197, 18, 22, 0.3);
+    box-shadow: 0 4px 15px var(--brand-primary-glow);
 }
 
 .tab-content {
@@ -119,18 +130,18 @@ body {
     border: 2px solid #e0e0e0;
     border-radius: 10px;
     font-size: 16px;
-    font-family: 'Quicksand', sans-serif;
+    font-family: var(--brand-font-body);
     transition: border-color 0.3s ease;
 }
 
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
-    border-color: #c51216;
+    border-color: var(--brand-primary);
 }
 
 button {
-    background: #c51216;
+    background: var(--brand-primary);
     color: white;
     border: none;
     padding: 12px 25px;
@@ -138,14 +149,14 @@ button {
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
-    font-family: 'Quicksand', sans-serif;
+    font-family: var(--brand-font-body);
     transition: all 0.3s ease;
 }
 
 button:hover {
-    background: #a30f12;
+    background: var(--brand-primary-dark);
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(197, 18, 22, 0.3);
+    box-shadow: 0 5px 15px var(--brand-primary-glow);
 }
 
 button:active {
@@ -168,7 +179,7 @@ button:active {
 }
 
 .mode-button.active {
-    background: #c51216;
+    background: var(--brand-primary);
     color: white;
 }
 
@@ -179,7 +190,7 @@ button:active {
 }
 
 .mode-button.active:hover {
-    background: #a30f12;
+    background: var(--brand-primary-dark);
     color: white;
 }
 
@@ -208,15 +219,15 @@ button:active {
 }
 
 .player-card:hover {
-    border-color: #c51216;
+    border-color: var(--brand-primary);
     background: #fff5f5;
     transform: translateY(-2px);
 }
 
 .player-card.selected {
-    border-color: #c51216;
+    border-color: var(--brand-primary);
     background: #ffe0e0;
-    box-shadow: 0 3px 10px rgba(197, 18, 22, 0.2);
+    box-shadow: 0 3px 10px var(--brand-primary-glow);
 }
 
 .player-card .avatar {
@@ -242,7 +253,7 @@ button:active {
 }
 
 .doubles-player-card:hover {
-    border-color: #c51216;
+    border-color: var(--brand-primary);
     background: #fff5f5;
     transform: translateY(-2px);
 }
@@ -280,7 +291,7 @@ button:active {
 .team h3 {
     margin: 0 0 10px 0;
     color: #333;
-    font-family: 'Fredoka One', cursive;
+    font-family: var(--brand-font-heading);
 }
 
 .team.team-winner {
@@ -294,9 +305,9 @@ button:active {
 }
 
 .vs-indicator {
-    font-family: 'Fredoka One', cursive;
+    font-family: var(--brand-font-heading);
     font-size: 24px;
-    color: #c51216;
+    color: var(--brand-primary);
     text-align: center;
     flex-shrink: 0;
 }
@@ -317,7 +328,7 @@ button:active {
 }
 
 .ranking-tab.active {
-    background: #c51216;
+    background: var(--brand-primary);
     color: white;
 }
 
@@ -328,7 +339,7 @@ button:active {
 }
 
 .ranking-tab.active:hover {
-    background: #a30f12;
+    background: var(--brand-primary-dark);
     color: white;
 }
 
@@ -362,11 +373,11 @@ table {
 }
 
 th {
-    background: #c51216;
+    background: var(--brand-primary);
     color: white;
     padding: 12px;
     text-align: left;
-    font-family: 'Fredoka One', cursive;
+    font-family: var(--brand-font-heading);
     font-weight: normal;
 }
 
@@ -567,9 +578,9 @@ tr:hover td { background: #f9f9f9; }
 }
 
 .profile-name {
-    font-family: 'Fredoka One', cursive;
+    font-family: var(--brand-font-heading);
     font-size: 1.8em;
-    color: #c51216;
+    color: var(--brand-primary);
     margin: 0;
 }
 
@@ -598,9 +609,9 @@ tr:hover td { background: #f9f9f9; }
 }
 
 .stat-value {
-    font-family: 'Fredoka One', cursive;
+    font-family: var(--brand-font-heading);
     font-size: 2em;
-    color: #c51216;
+    color: var(--brand-primary);
     line-height: 1.1;
 }
 
@@ -626,7 +637,7 @@ tr:hover td { background: #f9f9f9; }
 }
 
 .profile-chart-tab.active {
-    background: #c51216;
+    background: var(--brand-primary);
     color: white;
 }
 
@@ -637,7 +648,7 @@ tr:hover td { background: #f9f9f9; }
 }
 
 .profile-chart-tab.active:hover {
-    background: #a30f12;
+    background: var(--brand-primary-dark);
     color: white;
 }
 
@@ -662,7 +673,7 @@ tr.loss-row:hover td { background: #ffe8e8; }
 }
 
 .chart-tab.active {
-    background: #c51216;
+    background: var(--brand-primary);
     color: white;
 }
 
@@ -673,7 +684,7 @@ tr.loss-row:hover td { background: #ffe8e8; }
 }
 
 .chart-tab.active:hover {
-    background: #a30f12;
+    background: var(--brand-primary-dark);
     color: white;
 }
 

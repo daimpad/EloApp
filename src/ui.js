@@ -217,7 +217,7 @@ function buildRankRow(index, id, player, eloKey, matchesKey, winsKey, lossesKey)
     if      (index === 0) rankSpan.classList.add('rank-1');
     else if (index === 1) rankSpan.classList.add('rank-2');
     else if (index === 2) rankSpan.classList.add('rank-3');
-    else                  rankSpan.style.backgroundColor = '#c51216';
+    else                  rankSpan.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim() || '#c51216';
     rankSpan.textContent = index + 1;
 
     const rankCell = document.createElement('td');
@@ -447,7 +447,8 @@ export function closePlayerProfile() {
 // ================= KONFETTI =================
 
 export function showConfetti() {
-    const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#c51216'];
+    const brandPrimary = getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim() || '#c51216';
+    const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', brandPrimary];
     document.querySelectorAll('.confetti').forEach(c => c.remove());
 
     for (let i = 0; i < 100; i++) {

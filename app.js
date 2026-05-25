@@ -16,6 +16,7 @@ import {
     showConfetti,
 } from './src/ui.js';
 import { renderEloChart, renderPlayerChart } from './src/chart.js';
+import { applyBranding } from './src/branding.js';
 
 // ================= SERVICE WORKER =================
 
@@ -31,6 +32,7 @@ if ('serviceWorker' in navigator) {
 // Kopiere config.example.js → config.js und trage deine Supabase-Daten ein.
 const _cfg = (typeof CONFIG !== 'undefined') ? CONFIG : {};
 initApi(_cfg.SUPABASE_URL || '', _cfg.SUPABASE_ANON_KEY || '', _cfg.APP_SECRET || '');
+applyBranding(_cfg.BRANDING || {});
 
 // ================= GLOBAL (HTML onclick-Attribute) =================
 
