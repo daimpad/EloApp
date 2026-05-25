@@ -17,6 +17,14 @@ import {
 } from './src/ui.js';
 import { renderEloChart, renderPlayerChart } from './src/chart.js';
 
+// ================= SERVICE WORKER =================
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(err =>
+        console.warn('Service Worker Registrierung fehlgeschlagen:', err)
+    );
+}
+
 // ================= KONFIGURATION =================
 
 // Werte kommen aus config.js (nicht im Repository).
