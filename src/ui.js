@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { getPlayerStreak } from './streaks.js';
 
 // ================= AVATAR =================
 
@@ -233,7 +234,21 @@ function buildRankRow(index, id, player, eloKey, matchesKey, winsKey, lossesKey)
         row.appendChild(td);
     });
 
+    const streakType = eloKey === 'elo' ? 'singles' : 'doubles';
+    const streak     = getPlayerStreak(id, streakType);
+    const streakCell = document.createElement('td');
+    streakCell.innerHTML = streakBadge(streak);
+    row.appendChild(streakCell);
+
     return row;
+}
+
+function streakBadge({ current, isWin, longest }) {
+    if (current === 0) return '<span style="color:#ccc">—</span>';
+    if (!isWin)        return `<span class="streak-loss" title="Niederlagenserie">💔 ${current}</span>`;
+    const flame = current >= 5 ? '🔥🔥' : current >= 3 ? '🔥' : '⚡';
+    const title = `Aktuell: ${current} Siege in Folge | Rekord: ${longest}`;
+    return `<span class="streak-win" title="${title}">${flame} ${current}</span>`;
 }
 
 // ================= SPIELVERLAUF =================
@@ -329,12 +344,14 @@ export function openPlayerProfile(playerId, onChartTypeChange) {
     document.getElementById('profile-name').textContent   = player.name;
 
     document.getElementById('profile-singles-elo').textContent    = player.elo;
-    document.getElementById('profile-singles-record').textContent =
-        `${player.wins}S / ${player.losses}N (${player.matches} Spiele)`;
+    const sStreak = getPlayerStreak(playerId, 'singles');
+    document.getElementById('profile-singles-record').innerHTML =
+        `${player.wins}S / ${player.losses}N (${player.matches} Spiele) &nbsp;${streakBadge(sStreak)}`;
 
     document.getElementById('profile-doubles-elo').textContent    = player.doublesElo;
-    document.getElementById('profile-doubles-record').textContent =
-        `${player.doublesWins}S / ${player.doublesLosses}N (${player.doublesMatches} Spiele)`;
+    const dStreak = getPlayerStreak(playerId, 'doubles');
+    document.getElementById('profile-doubles-record').innerHTML =
+        `${player.doublesWins}S / ${player.doublesLosses}N (${player.doublesMatches} Spiele) &nbsp;${streakBadge(dStreak)}`;
 
     // Chart-Tab-Buttons verdrahten
     document.querySelectorAll('.profile-chart-tab').forEach(t => {
