@@ -166,8 +166,9 @@ export function updateTeamDisplay() {
 // ================= RANGLISTE =================
 
 export function showRankingTab(type) {
-    document.querySelectorAll('.ranking-tab').forEach(t => t.classList.remove('active'));
-    event.target.classList.add('active');
+    document.querySelectorAll('.ranking-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.type === type);
+    });
     document.getElementById('singles-ranking').style.display = type === 'singles' ? 'block' : 'none';
     document.getElementById('doubles-ranking').style.display = type === 'doubles' ? 'block' : 'none';
     renderRankings();

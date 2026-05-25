@@ -85,9 +85,14 @@ describe('fetchPlayers', () => {
         expect(url).toContain(`${BASE_URL}/rest/v1/players`);
     });
 
-    it('wirft bei HTTP-Fehler mit der Server-Meldung', async () => {
+    it('wirft bei 403 eine klare APP_SECRET-Fehlermeldung', async () => {
         vi.stubGlobal('fetch', mockFetchError(403, 'Keine Berechtigung'));
-        await expect(fetchPlayers()).rejects.toThrow('Keine Berechtigung');
+        await expect(fetchPlayers()).rejects.toThrow('APP_SECRET');
+    });
+
+    it('wirft bei sonstigen HTTP-Fehlern die Server-Meldung', async () => {
+        vi.stubGlobal('fetch', mockFetchError(500, 'Interner Fehler'));
+        await expect(fetchPlayers()).rejects.toThrow('Interner Fehler');
     });
 
     it('wirft bei Netzwerkausfall', async () => {

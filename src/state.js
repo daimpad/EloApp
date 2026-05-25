@@ -39,6 +39,9 @@ export function loadLocalMatches() {
  * berechnet sie aus der Match-History neu (chronologisch).
  * Wird nach jedem Laden vom Server aufgerufen.
  */
+/**
+ * @returns {number} Anzahl der übersprungenen Matches (unbekannte Spieler-IDs)
+ */
 export function recalculateStatsFromHistory() {
     Object.keys(state.players).forEach(id => {
         state.players[id].elo            = STARTING_ELO;
@@ -60,6 +63,8 @@ export function recalculateStatsFromHistory() {
         return s.includes(',') ? s.split(',').map(x => x.trim()) : [s];
     };
 
+    let skipped = 0;
+
     sorted.forEach(match => {
         const rawType     = String(match.type     || '').toLowerCase();
         const rawWinnerId = String(match.winnerId || '').toLowerCase();
@@ -77,7 +82,11 @@ export function recalculateStatsFromHistory() {
             const loserId  = String(lRaw || '').trim();
             const winner   = state.players[winnerId];
             const loser    = state.players[loserId];
-            if (!winner || !loser) return;
+            if (!winner || !loser) {
+                skipped++;
+                console.warn(`[ELO] Match ${match.id} übersprungen – unbekannte Spieler-ID (${winnerId}, ${loserId})`);
+                return;
+            }
 
             const result       = calculateSinglesMatch(winner.elo, loser.elo);
             winner.elo         = result.winnerElo;
@@ -89,7 +98,11 @@ export function recalculateStatsFromHistory() {
         } else {
             const winners = getIds(wRaw);
             const losers  = getIds(lRaw);
-            if (winners.some(id => !state.players[id]) || losers.some(id => !state.players[id])) return;
+            if (winners.some(id => !state.players[id]) || losers.some(id => !state.players[id])) {
+                skipped++;
+                console.warn(`[ELO] Match ${match.id} übersprungen – unbekannte Spieler-ID`);
+                return;
+            }
 
             const { eloChange } = calculateDoublesMatch(
                 winners.map(id => state.players[id].doublesElo),
@@ -110,4 +123,5 @@ export function recalculateStatsFromHistory() {
     });
 
     persistPlayers();
+    return skipped;
 }
