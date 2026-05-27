@@ -445,7 +445,7 @@ tr:hover td { background: #f9f9f9; }
 
 /* ================= LOADING OVERLAY ================= */
 
-.chicken-overlay {
+.app-overlay {
     display: none;
     position: fixed;
     inset: 0;
@@ -456,13 +456,13 @@ tr:hover td { background: #f9f9f9; }
     flex-direction: column;
 }
 
-.chicken-spinner {
+.app-spinner {
     font-size: 60px;
     animation: spin 0.8s linear infinite;
 }
 
-.chicken-spinner::after {
-    content: '🐔';
+.app-spinner::after {
+    content: '🏸';
 }
 
 @keyframes spin {

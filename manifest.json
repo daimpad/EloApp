@@ -1,6 +1,6 @@
 {
-    "name": "SpeedHennen",
-    "short_name": "SpeedHennen",
+    "name": "EloApp",
+    "short_name": "EloApp",
     "description": "Badminton ELO-Ranking für Einzel und Doppel",
     "start_url": "./",
     "display": "standalone",

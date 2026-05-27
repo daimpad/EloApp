@@ -51,4 +51,4 @@ elo.js → api.js → state.js → ui.js → app.js
 - **ELO source of truth is the match history**, not the stored player ELO values. Always call `recalculateStatsFromHistory()` after loading or deleting matches.
 - **Doubles matches** store `winnerId`/`loserId` as comma-separated player ID strings (`"id1,id2"`). Check for commas before parsing.
 - **Write operations** require `APP_SECRET`; reads are public. Supabase RLS enforces this via the `x-app-secret` header.
-- The service worker (`sw.js`, cache key `speedhennen-v3`) uses cache-first for static assets and network-first for Supabase/CDN. Bump the cache version string when adding new static files to `STATIC_ASSETS`.
+- The service worker (`sw.js`, cache key `eloapp-v1`) uses cache-first for static assets and network-first for Supabase/CDN. Bump the cache version string when adding new static files to `STATIC_ASSETS`.
