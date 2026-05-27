@@ -1,5 +1,24 @@
 import { STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './elo.js';
 
+// ── Match-Normalisierung ───────────────────────────────────────────────────
+
+/**
+ * Normalises a raw match object, correcting the column-shift bug present in
+ * data imported from old Google Sheets exports where winnerId held the type.
+ * Returns { type, winnerId, loserId } with correct values.
+ */
+export function normaliseMatch(match) {
+    const rawType     = String(match.type     || '').toLowerCase();
+    const rawWinnerId = String(match.winnerId || '').toLowerCase();
+
+    const columnShifted = rawWinnerId.includes('doubles') || rawWinnerId.includes('singles');
+    const type      = columnShifted ? rawWinnerId : rawType;
+    const winnerId  = columnShifted ? match.loserId    : match.winnerId;
+    const loserId   = columnShifted ? match.winnerName : match.loserId;
+
+    return { type, winnerId, loserId };
+}
+
 // ================= APP-ZUSTAND =================
 
 export const state = {
@@ -66,16 +85,8 @@ export function recalculateStatsFromHistory() {
     let skipped = 0;
 
     sorted.forEach(match => {
-        const rawType     = String(match.type     || '').toLowerCase();
-        const rawWinnerId = String(match.winnerId || '').toLowerCase();
-
-        // Workaround: ältere Matches aus Google Sheets hatten verschobene Spalten
-        const columnShifted = rawWinnerId.includes('doubles') || rawWinnerId.includes('singles');
-        const actualType    = columnShifted ? rawWinnerId : rawType;
-        const isDoubles     = actualType.includes('doubles') || String(match.winnerId).includes(',');
-
-        const wRaw = columnShifted ? match.loserId    : match.winnerId;
-        const lRaw = columnShifted ? match.winnerName : match.loserId;
+        const { type: actualType, winnerId: wRaw, loserId: lRaw } = normaliseMatch(match);
+        const isDoubles = actualType.includes('doubles') || String(wRaw || '').includes(',');
 
         if (!isDoubles) {
             const winnerId = String(wRaw || '').trim();
