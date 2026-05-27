@@ -1,5 +1,5 @@
 import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4/+esm';
-import { state } from './state.js';
+import { state, normaliseMatch } from './state.js';
 import { STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './elo.js';
 
 // ── Farbpalette ────────────────────────────────────────────────────────────
@@ -31,15 +31,19 @@ export function buildEloHistory(type = 'singles') {
     const getIds = (val) => String(val || '').split(',').map(s => s.trim()).filter(Boolean);
 
     const sorted = [...state.matches]
-        .filter(m => String(m.type || '').toLowerCase() === type)
         .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 
     let matchIndex = 1;
 
     sorted.forEach(match => {
+        const { type: matchType, winnerId: rawWId, loserId: rawLId } = normaliseMatch(match);
+        const isDoubles = matchType.includes('doubles') || String(rawWId || '').includes(',');
+        if (type === 'singles' && isDoubles) return;
+        if (type === 'doubles' && !isDoubles) return;
+
         if (type === 'singles') {
-            const wId = String(match.winnerId || '').trim();
-            const lId = String(match.loserId  || '').trim();
+            const wId = String(rawWId || '').trim();
+            const lId = String(rawLId || '').trim();
             if (currentElo[wId] === undefined || currentElo[lId] === undefined) return;
 
             const result = calculateSinglesMatch(currentElo[wId], currentElo[lId]);
@@ -49,8 +53,8 @@ export function buildEloHistory(type = 'singles') {
             history[wId].push({ matchIndex, date: match.date, elo: result.winnerElo });
             history[lId].push({ matchIndex, date: match.date, elo: result.loserElo });
         } else {
-            const winners = getIds(match.winnerId);
-            const losers  = getIds(match.loserId);
+            const winners = getIds(rawWId);
+            const losers  = getIds(rawLId);
             if (winners.some(id => currentElo[id] === undefined) ||
                 losers.some(id  => currentElo[id] === undefined)) return;
 
@@ -98,10 +102,20 @@ export function renderPlayerChart(playerId, type = 'singles') {
     const points  = history[playerId] || [];
 
     if (points.length === 0) {
-        canvas.parentElement.innerHTML =
-            '<p style="text-align:center;color:#999;padding:20px">Noch keine Spiele in diesem Modus.</p>';
+        let msg = canvas.parentElement.querySelector('.chart-empty-msg');
+        if (!msg) {
+            msg = document.createElement('p');
+            msg.className = 'chart-empty-msg';
+            msg.style.cssText = 'text-align:center;color:#999;padding:20px;margin:0';
+            canvas.parentElement.appendChild(msg);
+        }
+        msg.textContent = 'Noch keine Spiele in diesem Modus.';
+        canvas.style.display = 'none';
         return;
     }
+
+    canvas.style.display = '';
+    canvas.parentElement.querySelector('.chart-empty-msg')?.remove();
 
     const color = '#c51216';
     const data  = [
@@ -170,10 +184,20 @@ export function renderEloChart(type = 'singles') {
         .sort((a, b) => a[1].name.localeCompare(b[1].name));
 
     if (activePlayers.length === 0) {
-        canvas.parentElement.innerHTML =
-            '<p style="text-align:center;color:#999;padding:40px">Noch keine Matches eingetragen.</p>';
+        let msg = canvas.parentElement.querySelector('.chart-empty-msg');
+        if (!msg) {
+            msg = document.createElement('p');
+            msg.className = 'chart-empty-msg';
+            msg.style.cssText = 'text-align:center;color:#999;padding:40px;margin:0';
+            canvas.parentElement.appendChild(msg);
+        }
+        msg.textContent = 'Noch keine Matches eingetragen.';
+        canvas.style.display = 'none';
         return;
     }
+
+    canvas.style.display = '';
+    canvas.parentElement.querySelector('.chart-empty-msg')?.remove();
 
     const datasets = activePlayers.map(([id, player], index) => {
         const color = colorFor(index);

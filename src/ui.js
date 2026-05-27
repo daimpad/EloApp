@@ -172,7 +172,7 @@ export function showRankingTab(type) {
     });
     document.getElementById('singles-ranking').style.display = type === 'singles' ? 'block' : 'none';
     document.getElementById('doubles-ranking').style.display = type === 'doubles' ? 'block' : 'none';
-    renderRankings();
+    renderRankings(_onPlayerRowClick);
 }
 
 let _onPlayerRowClick = null;

@@ -302,8 +302,6 @@ async function saveMatch(match, playerEntries) {
         return;
     }
 
-    persistPlayers();
-    persistMatches();
     toggleLoading(true);
 
     try {
@@ -312,12 +310,17 @@ async function saveMatch(match, playerEntries) {
         }
         await createMatch(match);
 
+        persistPlayers();
+        persistMatches();
+
         const gameType = match.type === 'singles' ? 'Einzel' : 'Doppel';
         showSuccess(`🎉 ${gameType}-Match gespeichert! ${match.winnerName} gewinnt gegen ${match.loserName} (+${match.eloChange} Elo)`);
         showConfetti();
     } catch (err) {
         console.error(err);
-        showError('Match lokal gespeichert, aber nicht mit Supabase synchronisiert.');
+        state.matches.pop();
+        recalculateStatsFromHistory();
+        showError('Fehler beim Speichern. Match wurde nicht übertragen.');
     } finally {
         toggleLoading(false);
         renderRankings(openProfileModal);
@@ -332,6 +335,7 @@ async function removeMatch(id) {
     toggleLoading(true);
 
     try {
+        const match = state.matches.find(m => m.id === id);
         await deleteMatch(id);
 
         state.matches = state.matches.filter(m => m.id !== id);
@@ -339,12 +343,13 @@ async function removeMatch(id) {
 
         recalculateStatsFromHistory();
 
-        // Alle Spieler-ELOs in Supabase aktualisieren
-        await Promise.all(
-            Object.entries(state.players).map(([playerId, player]) =>
-                updatePlayer(playerId, player)
-            )
-        );
+        // Only write back players who appeared in the deleted match
+        const affectedIds = match
+            ? [...String(match.winnerId || '').split(','), ...String(match.loserId || '').split(',')]
+                .map(s => s.trim()).filter(s => s && state.players[s])
+            : Object.keys(state.players);
+
+        await Promise.all(affectedIds.map(pid => updatePlayer(pid, state.players[pid])));
 
         persistPlayers();
         renderRankings(openProfileModal);
