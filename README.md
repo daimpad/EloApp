@@ -1,6 +1,6 @@
-# EloApp 🏸
+# ELO-App 🏸
 
-Badminton ELO-Ranking-App für Einzel- und Doppelspiele — gehostet im Browser, Daten in [Supabase](https://supabase.com). Vollständig white-label-fähig über `config.js`.
+ELO-Ranking-App für Einzel- und Doppelspiele — gehostet im Browser, Daten in [Supabase](https://supabase.com). Vollständig white-label-fähig über `config.js`.
 
 ## Features
 
