@@ -1,4 +1,4 @@
-const CACHE = 'speedhennen-v3';
+const CACHE = 'eloapp-v1';
 
 const STATIC_ASSETS = [
     './',

@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SpeedHennen 🏸🐔</title>
+    <title>EloApp 🏸</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#c51216">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SpeedHennen">
+    <meta name="apple-mobile-web-app-title" content="EloApp">
     <link rel="apple-touch-icon" href="icons/icon-192.svg">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;700&display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
         </div>
 
         <div class="header">
-            <h1>SpeedHennen 🏸🐔</h1>
+            <h1>EloApp 🏸</h1>
         </div>
 
         <div class="status-area">
@@ -42,7 +42,7 @@
                 <span class="emoji">📜</span> Spielverlauf
             </div>
             <div class="tab" onclick="openTab(this, 'add-player')">
-                <span class="emoji">🐔</span> Neue Henne
+                <span class="emoji">➕</span> Spieler
             </div>
         </div>
 
@@ -57,7 +57,7 @@
             <!-- Einzel-Spiel Interface -->
             <div id="singles-interface">
                 <div class="form-group">
-                    <label for="player-search">Henne suchen:</label>
+                    <label for="player-search">Spieler suchen:</label>
                     <input type="text" id="player-search" oninput="filterPlayers()" placeholder="Namen eingeben...">
                 </div>
 
@@ -124,12 +124,12 @@
         </div>
 
         <div id="add-player" class="tab-content">
-            <h2><span class="emoji">🐔</span> Neue Henne hinzufügen</h2>
+            <h2><span class="emoji">➕</span> Neuen Spieler hinzufügen</h2>
             <div class="form-group">
                 <label for="playerName">Vorname:</label>
                 <input type="text" id="playerName" placeholder="Vorname eingeben">
             </div>
-            <button onclick="addPlayer()">Henne hinzufügen</button>
+            <button onclick="addPlayer()">Spieler hinzufügen</button>
         </div>
 
         <div id="rankings" class="tab-content">
@@ -180,8 +180,8 @@
         </div>
 
         <!-- Lade-Overlay -->
-        <div id="chicken-loader" class="chicken-overlay" aria-live="polite" aria-label="Ladevorgang läuft...">
-            <div class="chicken-spinner"></div>
+        <div id="app-loader" class="app-overlay" aria-live="polite" aria-label="Ladevorgang läuft...">
+            <div class="app-spinner"></div>
         </div>
 
         <div id="elo-chart" class="tab-content">

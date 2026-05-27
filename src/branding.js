@@ -31,7 +31,7 @@ export function applyBranding(branding = {}) {
         document.head.appendChild(link);
     }
 
-    const appName = branding.name || 'SpeedHennen 🏸🐔';
+    const appName = branding.name || 'EloApp 🏸';
 
     document.title = appName;
 

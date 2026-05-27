@@ -7,7 +7,7 @@ const avatarEmojis = ['😎','🤩','🤓','🤠','👻','🤖','👽','🦄','�
 
 export function getAvatarEmoji(playerId) {
     playerId = String(playerId || '');
-    if (!playerId) return '🐔';
+    if (!playerId) return '🏸';
     const seed = playerId.charCodeAt(0) + playerId.charCodeAt(playerId.length - 1);
     return avatarEmojis[seed % avatarEmojis.length];
 }
@@ -29,7 +29,7 @@ export function showSuccess(message) {
 }
 
 export function toggleLoading(show) {
-    const el = document.querySelector('.chicken-overlay');
+    const el = document.querySelector('.app-overlay');
     if (!el) return;
     el.style.display = show ? 'flex' : 'none';
     el.style.opacity = show ? 1 : 0;

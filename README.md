@@ -1,4 +1,4 @@
-# SpeedHennen 🏸🐔
+# EloApp 🏸
 
 Badminton ELO-Ranking-App für Einzel- und Doppelspiele — gehostet im Browser, Daten in [Supabase](https://supabase.com). Vollständig white-label-fähig über `config.js`.
 
@@ -67,8 +67,8 @@ Alle visuellen Markenwerte werden aus dem `BRANDING`-Objekt in `config.js` geset
 
 | Feld | Beschreibung | Standard |
 |------|-------------|---------|
-| `name` | App-Name (Titel + H1) | `'SpeedHennen 🏸🐔'` |
-| `shortName` | Kurzname für iOS-Homescreen | `'SpeedHennen'` |
+| `name` | App-Name (Titel + H1) | `'EloApp 🏸'` |
+| `shortName` | Kurzname für iOS-Homescreen | `'EloApp'` |
 | `primaryColor` | Hauptfarbe (Hex) | `'#c51216'` |
 | `primaryColorDark` | Hover-Farbe (optional, wird sonst berechnet) | auto |
 | `fontHeading` | Überschriften-Schrift (Google Fonts Name) | `'Fredoka One'` |

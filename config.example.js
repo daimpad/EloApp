@@ -13,8 +13,8 @@ var CONFIG = {
 
     // White-Label-Branding (alle Felder optional — weglassen = Standard-Design)
     BRANDING: {
-        name:         'SpeedHennen 🏸🐔',   // App-Name (Titel + H1)
-        shortName:    'SpeedHennen',          // Kurzname für iOS Homescreen
+        name:         'EloApp 🏸',            // App-Name (Titel + H1)
+        shortName:    'EloApp',               // Kurzname für iOS Homescreen
 
         primaryColor: '#c51216',              // Hauptfarbe (Hex)
         // primaryColorDark: '#a30f12',       // optional: Hover-Farbe (wird sonst automatisch berechnet)
