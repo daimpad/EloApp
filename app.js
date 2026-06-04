@@ -320,6 +320,12 @@ async function saveMatch(match, playerEntries) {
         console.error(err);
         state.matches.pop();
         recalculateStatsFromHistory();
+        // Revert any player ELOs already written to Supabase before the failure
+        try {
+            await Promise.all(playerEntries.map(({ id }) => updatePlayer(id, state.players[id])));
+        } catch (revertErr) {
+            console.error('ELO-Revert fehlgeschlagen:', revertErr);
+        }
         showError('Fehler beim Speichern. Match wurde nicht übertragen.');
     } finally {
         toggleLoading(false);
@@ -343,13 +349,9 @@ async function removeMatch(id) {
 
         recalculateStatsFromHistory();
 
-        // Only write back players who appeared in the deleted match
-        const affectedIds = match
-            ? [...String(match.winnerId || '').split(','), ...String(match.loserId || '').split(',')]
-                .map(s => s.trim()).filter(s => s && state.players[s])
-            : Object.keys(state.players);
-
-        await Promise.all(affectedIds.map(pid => updatePlayer(pid, state.players[pid])));
+        await Promise.all(
+            Object.entries(state.players).map(([pid, player]) => updatePlayer(pid, player))
+        );
 
         persistPlayers();
         renderRankings(openProfileModal);
