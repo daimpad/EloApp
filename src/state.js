@@ -41,14 +41,26 @@ export function persistMatches() {
 
 export function loadLocalPlayers() {
     const raw = localStorage.getItem('eloPlayers');
-    if (raw) state.players = JSON.parse(raw);
-    return !!raw;
+    if (!raw) return false;
+    try {
+        state.players = JSON.parse(raw);
+        return true;
+    } catch {
+        localStorage.removeItem('eloPlayers');
+        return false;
+    }
 }
 
 export function loadLocalMatches() {
     const raw = localStorage.getItem('eloMatches');
-    if (raw) state.matches = JSON.parse(raw);
-    return !!raw;
+    if (!raw) return false;
+    try {
+        state.matches = JSON.parse(raw);
+        return true;
+    } catch {
+        localStorage.removeItem('eloMatches');
+        return false;
+    }
 }
 
 // ================= STATISTIK-NEUBERECHNUNG =================

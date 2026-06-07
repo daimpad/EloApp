@@ -184,6 +184,10 @@ export function renderEloChart(type = 'singles') {
         .sort((a, b) => a[1].name.localeCompare(b[1].name));
 
     if (activePlayers.length === 0) {
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
         let msg = canvas.parentElement.querySelector('.chart-empty-msg');
         if (!msg) {
             msg = document.createElement('p');
