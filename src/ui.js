@@ -16,6 +16,7 @@ export function getAvatarEmoji(playerId) {
 
 export function showError(message) {
     const el = document.getElementById('errorMessage');
+    if (!el) { console.error(message); return; }
     el.textContent = message;
     el.style.display = 'block';
     setTimeout(() => { el.style.display = 'none'; }, 5000);
@@ -23,6 +24,7 @@ export function showError(message) {
 
 export function showSuccess(message) {
     const el = document.getElementById('successMessage');
+    if (!el) { console.log(message); return; }
     el.textContent = message;
     el.style.display = 'block';
     setTimeout(() => { el.style.display = 'none'; }, 5000);
