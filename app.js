@@ -341,7 +341,6 @@ async function removeMatch(id) {
     toggleLoading(true);
 
     try {
-        const match = state.matches.find(m => m.id === id);
         await deleteMatch(id);
 
         state.matches = state.matches.filter(m => m.id !== id);
