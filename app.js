@@ -65,9 +65,9 @@ window.clearTeams = clearSelections;
 
 window.filterPlayers = filterPlayerList;
 
-window.recordMatch        = recordMatch;
-window.recordDoublesMatch = recordDoublesMatch;
-window.addPlayer          = addPlayer;
+window.recordMatch        = () => recordMatch().catch(err => showError(err.message));
+window.recordDoublesMatch = () => recordDoublesMatch().catch(err => showError(err.message));
+window.addPlayer          = () => addPlayer().catch(err => showError(err.message));
 
 // ================= INITIALISIERUNG =================
 
@@ -81,6 +81,7 @@ window.onload = async function() {
 
     if (!_cfg.SUPABASE_URL || !_cfg.SUPABASE_ANON_KEY) {
         showError('Supabase nicht konfiguriert. Bitte config.js anlegen (siehe config.example.js).');
+        return;
     }
 
     await loadPlayers();
@@ -325,6 +326,7 @@ async function saveMatch(match, playerEntries) {
             await Promise.all(playerEntries.map(({ id }) => updatePlayer(id, state.players[id])));
         } catch (revertErr) {
             console.error('ELO-Revert fehlgeschlagen:', revertErr);
+            showError('ELO-Synchronisation fehlgeschlagen. Bitte Seite neu laden.');
         }
         showError('Fehler beim Speichern. Match wurde nicht übertragen.');
     } finally {
