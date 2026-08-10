@@ -1,24 +1,44 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { initApi, fetchPlayers, fetchMatches, createPlayer, updatePlayer, createMatch, deleteMatch } from './api.js';
+import {
+    initApi, fetchPlayers, fetchMatches,
+    createPlayer, updatePlayer, renamePlayer, createMatch, deleteMatch,
+} from './api.js';
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────
+//
+// Die Mocks bilden eine echte Response nach: `text()` ist die Methode, die
+// request() verwendet. Ein Mock, der nur `json()` anbietet, verdeckt genau die
+// Fehlerklasse, um die es bei PostgREST geht (201 mit leerem Body).
 
-function mockFetch(body, status = 200) {
-    return vi.fn().mockResolvedValue({
-        ok:     status < 400,
+function response(body, status = 200) {
+    const text = body === null || body === undefined ? '' : JSON.stringify(body);
+    return {
+        ok: status < 400,
         status,
         statusText: status === 204 ? 'No Content' : 'OK',
+        text: () => Promise.resolve(text),
         json: () => Promise.resolve(body),
-    });
+    };
 }
 
+function mockFetch(body, status = 200) {
+    return vi.fn().mockResolvedValue(response(body, status));
+}
+
+/** PostgREST-Antwort auf DELETE/PATCH mit Prefer: return=minimal */
 function mockFetch204() {
-    return vi.fn().mockResolvedValue({ ok: true, status: 204, json: () => Promise.resolve(null) });
+    return vi.fn().mockResolvedValue(response(null, 204));
+}
+
+/** PostgREST-Antwort auf POST mit Prefer: return=minimal — 201, leerer Body */
+function mockFetch201() {
+    return vi.fn().mockResolvedValue(response(null, 201));
 }
 
 function mockFetchError(status, message = 'Fehler') {
     return vi.fn().mockResolvedValue({
         ok: false, status, statusText: 'Error',
+        text: () => Promise.resolve(JSON.stringify({ message })),
         json: () => Promise.resolve({ message }),
     });
 }
@@ -115,7 +135,16 @@ describe('fetchMatches', () => {
             winnerId: '1', loserId: '2',
             winnerName: 'Anna', loserName: 'Ben',
             eloChange: 16,
+            winnerScore: null, loserScore: null,
         }]);
+    });
+
+    it('liest Satzergebnisse mit, wenn die Spalten vorhanden sind', async () => {
+        vi.stubGlobal('fetch', mockFetch([{ ...matchRow, winner_score: 21, loser_score: 19 }]));
+
+        const [match] = await fetchMatches();
+        expect(match.winnerScore).toBe(21);
+        expect(match.loserScore).toBe(19);
     });
 
     it('gibt leeres Array zurück wenn keine Matches vorhanden', async () => {
@@ -130,6 +159,90 @@ describe('fetchMatches', () => {
         const url = vi.mocked(fetch).mock.calls[0][0];
         expect(url).toContain(`${BASE_URL}/rest/v1/matches`);
     });
+
+    it('sortiert serverseitig nach Datum mit der ID als Tie-Break', async () => {
+        vi.stubGlobal('fetch', mockFetch([]));
+        await fetchMatches();
+
+        const url = vi.mocked(fetch).mock.calls[0][0];
+        expect(url).toContain('order=date.asc,id.asc');
+    });
+
+    it('enthält die Supabase-ID im App-Match-Objekt', async () => {
+        vi.stubGlobal('fetch', mockFetch([matchRow]));
+        const result = await fetchMatches();
+        expect(result[0].id).toBe(1);
+    });
+});
+
+// ── Auth-Header bei Schreibzugriffen ───────────────────────────────────────
+//
+// Regressionstests für den Bug, bei dem `...options` hinter `headers:` stand
+// und das mitgegebene `Prefer`-Objekt die berechneten Header komplett ersetzt
+// hat. Alle Mutationen übergeben eigene Header — genau deshalb muss jede
+// einzelne geprüft werden, und nicht nur ein Lesepfad.
+
+describe('Auth-Header bei Schreibzugriffen', () => {
+    const player = {
+        name: 'Ben', elo: 1000, matches: 0, wins: 0, losses: 0,
+        doublesElo: 1000, doublesMatches: 0, doublesWins: 0, doublesLosses: 0,
+    };
+    const match = {
+        date: '2025-05-01T12:00:00.000Z', type: 'singles',
+        winnerId: '1', loserId: '2',
+        winnerName: 'Anna', loserName: 'Ben', eloChange: 16,
+    };
+
+    const mutations = [
+        ['createPlayer', () => createPlayer('42', player)],
+        ['updatePlayer', () => updatePlayer('42', player)],
+        ['renamePlayer', () => renamePlayer('42', 'Neuer Name')],
+        ['createMatch',  () => createMatch(match)],
+        ['deleteMatch',  () => deleteMatch(42)],
+    ];
+
+    for (const [name, run] of mutations) {
+        it(`${name} sendet apikey, Authorization und x-app-secret`, async () => {
+            initApi(BASE_URL, ANON_KEY, 'mein-geheimnis');
+            vi.stubGlobal('fetch', mockFetch([matchRow], 201));
+
+            await run();
+
+            const headers = vi.mocked(fetch).mock.calls[0][1].headers;
+            expect(headers.apikey).toBe(ANON_KEY);
+            expect(headers.Authorization).toBe(`Bearer ${ANON_KEY}`);
+            expect(headers['x-app-secret']).toBe('mein-geheimnis');
+        });
+
+        it(`${name} behält den mitgegebenen Prefer-Header`, async () => {
+            initApi(BASE_URL, ANON_KEY, 'mein-geheimnis');
+            vi.stubGlobal('fetch', mockFetch([matchRow], 201));
+
+            await run();
+
+            const headers = vi.mocked(fetch).mock.calls[0][1].headers;
+            expect(headers.Prefer).toMatch(/^return=(minimal|representation)$/);
+        });
+    }
+});
+
+// ── Antwort-Verarbeitung ───────────────────────────────────────────────────
+
+describe('Antwort-Verarbeitung', () => {
+    const player = {
+        name: 'Ben', elo: 1000, matches: 0, wins: 0, losses: 0,
+        doublesElo: 1000, doublesMatches: 0, doublesWins: 0, doublesLosses: 0,
+    };
+
+    it('behandelt 201 mit leerem Body als Erfolg', async () => {
+        vi.stubGlobal('fetch', mockFetch201());
+        await expect(createPlayer('42', player)).resolves.toBeUndefined();
+    });
+
+    it('behandelt 204 mit leerem Body als Erfolg', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
+        await expect(deleteMatch(1)).resolves.toBeUndefined();
+    });
 });
 
 // ── createPlayer ───────────────────────────────────────────────────────────
@@ -141,7 +254,7 @@ describe('createPlayer', () => {
     };
 
     it('sendet POST an /players mit snake_case-Feldern', async () => {
-        vi.stubGlobal('fetch', mockFetch204());
+        vi.stubGlobal('fetch', mockFetch201());
         await createPlayer('42', player);
 
         const [url, opts] = vi.mocked(fetch).mock.calls[0];
@@ -156,7 +269,7 @@ describe('createPlayer', () => {
     });
 
     it('mappt camelCase korrekt auf snake_case', async () => {
-        vi.stubGlobal('fetch', mockFetch204());
+        vi.stubGlobal('fetch', mockFetch201());
         await createPlayer('1', { ...player, doublesWins: 3, doublesLosses: 2 });
 
         const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
@@ -170,7 +283,7 @@ describe('createPlayer', () => {
     });
 });
 
-// ── updatePlayer ───────────────────────────────────────────────────────────
+// ── updatePlayer / renamePlayer ────────────────────────────────────────────
 
 describe('updatePlayer', () => {
     const player = {
@@ -197,9 +310,29 @@ describe('updatePlayer', () => {
         expect(body.doubles_wins).toBe(1);
     });
 
+    it('überträgt bewusst keinen Namen', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
+        await updatePlayer('7', { ...player, name: 'Egal' });
+
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body.name).toBeUndefined();
+    });
+
     it('wirft bei Netzwerkausfall', async () => {
         vi.stubGlobal('fetch', mockFetchNetworkError());
         await expect(updatePlayer('7', player)).rejects.toThrow();
+    });
+});
+
+describe('renamePlayer', () => {
+    it('sendet nur das name-Feld', async () => {
+        vi.stubGlobal('fetch', mockFetch204());
+        await renamePlayer('7', 'Sebastian');
+
+        const [url, opts] = vi.mocked(fetch).mock.calls[0];
+        expect(url).toContain('/rest/v1/players?id=eq.7');
+        expect(opts.method).toBe('PATCH');
+        expect(JSON.parse(opts.body)).toEqual({ name: 'Sebastian' });
     });
 });
 
@@ -214,7 +347,7 @@ describe('createMatch', () => {
     };
 
     it('sendet POST an /matches mit snake_case-Feldern', async () => {
-        vi.stubGlobal('fetch', mockFetch204());
+        vi.stubGlobal('fetch', mockFetch([matchRow], 201));
         await createMatch(match);
 
         const [url, opts] = vi.mocked(fetch).mock.calls[0];
@@ -228,8 +361,27 @@ describe('createMatch', () => {
         expect(body.elo_change).toBe(16);
     });
 
+    it('sendet keine lokal erfundene id mit — die vergibt Postgres', async () => {
+        vi.stubGlobal('fetch', mockFetch([matchRow], 201));
+        await createMatch({ ...match, id: 999 });
+
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body.id).toBeUndefined();
+    });
+
+    it('fordert die gespeicherte Zeile an und gibt die echte ID zurück', async () => {
+        vi.stubGlobal('fetch', mockFetch([{ ...matchRow, id: 4711 }], 201));
+
+        const saved = await createMatch(match);
+
+        const headers = vi.mocked(fetch).mock.calls[0][1].headers;
+        expect(headers.Prefer).toBe('return=representation');
+        expect(saved.id).toBe(4711);
+        expect(saved.winnerId).toBe('1');
+    });
+
     it('sendet Doppel-Match korrekt (IDs mit Komma)', async () => {
-        vi.stubGlobal('fetch', mockFetch204());
+        vi.stubGlobal('fetch', mockFetch([matchRow], 201));
         await createMatch({ ...match, type: 'doubles', winnerId: '1,2', loserId: '3,4' });
 
         const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
@@ -275,16 +427,6 @@ describe('deleteMatch', () => {
     });
 });
 
-// ── fetchMatches (id-Feld) ─────────────────────────────────────────────────
-
-describe('fetchMatches id-Mapping', () => {
-    it('enthält die Supabase-ID im App-Match-Objekt', async () => {
-        vi.stubGlobal('fetch', mockFetch([matchRow]));
-        const result = await fetchMatches();
-        expect(result[0].id).toBe(1);
-    });
-});
-
 // ── initApi ────────────────────────────────────────────────────────────────
 
 describe('initApi', () => {
@@ -324,5 +466,41 @@ describe('initApi', () => {
 
         const headers = vi.mocked(fetch).mock.calls[0][1].headers;
         expect(headers['x-app-secret']).toBeUndefined();
+    });
+});
+
+// ── Satzergebnisse ─────────────────────────────────────────────────────────
+
+describe('Satzergebnisse', () => {
+    const match = {
+        date: '2025-05-01T12:00:00.000Z', type: 'singles',
+        winnerId: '1', loserId: '2',
+        winnerName: 'Anna', loserName: 'Ben', eloChange: 16,
+    };
+
+    it('sendet die Spalten nicht mit, wenn kein Ergebnis eingetragen wurde', async () => {
+        vi.stubGlobal('fetch', mockFetch([matchRow], 201));
+        await createMatch(match);
+
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body).not.toHaveProperty('winner_score');
+        expect(body).not.toHaveProperty('loser_score');
+    });
+
+    it('sendet sie, wenn beide Werte vorliegen', async () => {
+        vi.stubGlobal('fetch', mockFetch([matchRow], 201));
+        await createMatch({ ...match, winnerScore: 21, loserScore: 19 });
+
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body.winner_score).toBe(21);
+        expect(body.loser_score).toBe(19);
+    });
+
+    it('sendet sie nicht, wenn nur einer der beiden Werte vorliegt', async () => {
+        vi.stubGlobal('fetch', mockFetch([matchRow], 201));
+        await createMatch({ ...match, winnerScore: 21, loserScore: null });
+
+        const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
+        expect(body).not.toHaveProperty('winner_score');
     });
 });

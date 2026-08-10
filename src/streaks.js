@@ -1,44 +1,44 @@
 import { state } from './state.js';
+import { normaliseMatch, sortMatchesAsc } from './match.js';
 
 /**
  * Berechnet die aktuelle und längste Siegesserie eines Spielers.
+ *
+ * Nutzt dieselbe Match-Interpretation wie Rangliste und Diagramm: vorher las
+ * diese Funktion `m.type` direkt, sodass Matches mit verschobenen Spalten aus
+ * dem Sheets-Import in die ELO-Berechnung eingingen, aus der Serien-Spalte
+ * aber verschwanden.
+ *
  * @param {string} playerId
  * @param {'singles'|'doubles'|'all'} type
  * @returns {{ current: number, isWin: boolean, longest: number }}
  */
 export function getPlayerStreak(playerId, type = 'all') {
-    const matches = [...state.matches]
-        .filter(m => {
-            if (type !== 'all' && String(m.type || '').toLowerCase() !== type) return false;
-            const wIds = String(m.winnerId || '').split(',').map(s => s.trim());
-            const lIds = String(m.loserId  || '').split(',').map(s => s.trim());
-            return wIds.includes(playerId) || lIds.includes(playerId);
-        })
-        .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+    const relevant = state.matches.filter(match => {
+        const { type: matchType, winnerIds, loserIds } = normaliseMatch(match);
+        if (type !== 'all' && matchType !== type) return false;
+        return winnerIds.includes(playerId) || loserIds.includes(playerId);
+    });
 
-    if (matches.length === 0) return { current: 0, isWin: true, longest: 0 };
+    if (relevant.length === 0) return { current: 0, isWin: true, longest: 0 };
 
-    const isWinFor = (m) =>
-        String(m.winnerId || '').split(',').map(s => s.trim()).includes(playerId);
+    const matches  = sortMatchesAsc(relevant);
+    const isWinFor = (match) => normaliseMatch(match).winnerIds.includes(playerId);
 
-    // Aktuelle Serie: von hinten zählen
-    let current = 0;
+    // Aktuelle Serie: von hinten zählen, solange das Ergebnis gleich bleibt
     const lastIsWin = isWinFor(matches[matches.length - 1]);
+    let current = 0;
     for (let i = matches.length - 1; i >= 0; i--) {
-        if (isWinFor(matches[i]) === lastIsWin) current++;
-        else break;
+        if (isWinFor(matches[i]) !== lastIsWin) break;
+        current++;
     }
 
-    // Längste Siegesserie
+    // Längste Siegesserie über den gesamten Verlauf
     let longest = 0;
     let run = 0;
-    for (const m of matches) {
-        if (isWinFor(m)) {
-            run++;
-            if (run > longest) longest = run;
-        } else {
-            run = 0;
-        }
+    for (const match of matches) {
+        run = isWinFor(match) ? run + 1 : 0;
+        if (run > longest) longest = run;
     }
 
     return { current, isWin: lastIsWin, longest };
