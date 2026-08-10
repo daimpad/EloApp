@@ -4,9 +4,15 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "start": "npx --yes serve .",
+    "vendor:chart": "cp node_modules/chart.js/dist/chart.umd.js vendor/chart.umd.js"
   },
   "devDependencies": {
+    "jsdom": "^30.0.1",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "chart.js": "4.4.7"
   }
 }

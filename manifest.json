@@ -1,24 +1,35 @@
 {
+    "id": "/eloapp/",
     "name": "EloApp",
     "short_name": "EloApp",
-    "description": "Badminton ELO-Ranking für Einzel und Doppel",
+    "description": "ELO-Ranking für Einzel und Doppel",
     "start_url": "./",
+    "scope": "./",
     "display": "standalone",
     "orientation": "portrait-primary",
     "background_color": "#ffffff",
     "theme_color": "#c51216",
+    "categories": ["sports", "utilities"],
+    "lang": "de",
+    "dir": "ltr",
     "icons": [
         {
-            "src": "icons/icon-192.svg",
+            "src": "icons/icon-192.png",
             "sizes": "192x192",
-            "type": "image/svg+xml",
-            "purpose": "any maskable"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
-            "src": "icons/icon-512.svg",
+            "src": "icons/icon-512.png",
             "sizes": "512x512",
-            "type": "image/svg+xml",
-            "purpose": "any maskable"
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
         }
     ]
 }

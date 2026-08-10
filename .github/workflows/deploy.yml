@@ -24,13 +24,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Nur die Dateien ausliefern, die die App wirklich braucht.
+      # Vorher ging das komplette Repo-Root hoch — inklusive der SQL-Dateien,
+      # der Tests und package-lock.json.
+      - name: Seite zusammenstellen
+        run: |
+          mkdir -p _site/src _site/icons _site/vendor
+          cp index.html app.js style.css sw.js manifest.json _site/
+          cp icons/*.png _site/icons/
+          cp vendor/chart.umd.js _site/vendor/
+          # Tests gehören nicht in die Auslieferung
+          for f in src/*.js; do
+            case "$f" in *.test.js) continue ;; esac
+            cp "$f" _site/src/
+          done
+
+      # config.js ist gitignored und existiert im Checkout nicht. Ohne diesen
+      # Schritt liefe die deployte Seite zwangsläufig in den
+      # "Einrichtung nicht abgeschlossen"-Zweig.
+      #
+      # Hinweis: APP_SECRET wird zwingend an den Browser ausgeliefert und ist
+      # auf einer öffentlichen Seite für jeden lesbar. Es ist eine
+      # Vandalismus-Bremse, kein Geheimnis.
+      - name: config.js aus Repository-Secrets erzeugen
+        env:
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          APP_SECRET:        ${{ secrets.APP_SECRET }}
+          BRANDING_JSON:     ${{ secrets.BRANDING_JSON }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL und SUPABASE_ANON_KEY müssen als Repository-Secrets gesetzt sein."
+            echo "::error::Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+
+          BRANDING="${BRANDING_JSON:-{\}}"
+
+          cat > _site/config.js <<EOF
+          var CONFIG = {
+              SUPABASE_URL:      $(printf '%s' "$SUPABASE_URL"      | jq -R .),
+              SUPABASE_ANON_KEY: $(printf '%s' "$SUPABASE_ANON_KEY" | jq -R .),
+              APP_SECRET:        $(printf '%s' "$APP_SECRET"        | jq -R .),
+              BRANDING:          ${BRANDING},
+          };
+          EOF
+
+          node --check _site/config.js && echo "config.js erzeugt"
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
