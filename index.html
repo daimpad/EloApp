@@ -3,64 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!--
+        Zweite Verteidigungslinie hinter der Ausgabe-Escapung in ui.js.
+        Möglich geworden, weil die App keine Inline-Handler mehr verwendet —
+        deshalb kommt script-src ohne 'unsafe-inline' aus.
+        connect-src ist der eigentliche Gewinn: ein eingeschleuster Payload
+        kann keine fremde Adresse kontaktieren.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'none';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src https://fonts.gstatic.com;
+        img-src 'self' data: blob:;
+        connect-src 'self' https://*.supabase.co;
+        manifest-src 'self' blob:;
+        worker-src 'self';
+        base-uri 'none';
+        form-action 'none';
+    ">
+
     <title>EloApp 🏸</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#c51216">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="EloApp">
-    <link rel="apple-touch-icon" href="icons/icon-192.svg">
+    <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <div id="demo-banner" class="demo-banner" style="display:none">
+        <div id="demo-banner" class="demo-banner" hidden>
             Demo-Modus — Daten werden nicht gespeichert
         </div>
 
-        <div class="header">
+        <header class="header">
             <h1>EloApp 🏸</h1>
+            <div class="header-meta">
+                <span id="last-synced" class="last-synced"></span>
+                <button type="button" id="refresh-btn" data-requires-config class="btn-refresh" aria-label="Daten neu laden">
+                    <span aria-hidden="true">↻</span> Aktualisieren
+                </button>
+            </div>
+        </header>
+
+        <!-- Dauerhafter Hinweis, wenn config.js fehlt. Ein Toast wäre nach
+             fünf Sekunden weg und die App sähe aus wie eine leere Instanz. -->
+        <section id="config-panel" class="config-panel" hidden>
+            <h2>Einrichtung nicht abgeschlossen</h2>
+            <p>Die App findet keine Supabase-Konfiguration. Ohne sie lassen sich keine Daten laden oder speichern.</p>
+            <ol>
+                <li><code>config.example.js</code> nach <code>config.js</code> kopieren</li>
+                <li><code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code> und <code>APP_SECRET</code> eintragen</li>
+                <li>Seite neu laden</li>
+            </ol>
+            <p>Zum Ausprobieren ohne Datenbank: <a href="?demo=true">Demo-Modus öffnen</a></p>
+        </section>
+
+        <!-- Meldungen. role wird pro Toast gesetzt: Fehler assertive, Erfolg polite. -->
+        <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+
+        <div class="tab-container" role="tablist" aria-label="Bereiche">
+            <button type="button" class="tab active" role="tab" id="tab-add-match"
+                    data-tab="add-match" aria-controls="add-match" aria-selected="true">
+                <span class="emoji" aria-hidden="true">🏸</span> Spiel eintragen
+            </button>
+            <button type="button" class="tab" role="tab" id="tab-rankings"
+                    data-tab="rankings" aria-controls="rankings" aria-selected="false" tabindex="-1">
+                <span class="emoji" aria-hidden="true">🏅</span> Rangliste
+            </button>
+            <button type="button" class="tab" role="tab" id="tab-elo-chart"
+                    data-tab="elo-chart" aria-controls="elo-chart" aria-selected="false" tabindex="-1">
+                <span class="emoji" aria-hidden="true">📈</span> ELO-Verlauf
+            </button>
+            <button type="button" class="tab" role="tab" id="tab-history"
+                    data-tab="history" aria-controls="history" aria-selected="false" tabindex="-1">
+                <span class="emoji" aria-hidden="true">📜</span> Spielverlauf
+            </button>
+            <button type="button" class="tab" role="tab" id="tab-add-player"
+                    data-tab="add-player" aria-controls="add-player" aria-selected="false" tabindex="-1">
+                <span class="emoji" aria-hidden="true">➕</span> Spieler
+            </button>
+            <button type="button" class="tab" role="tab" id="tab-data"
+                    data-tab="data" aria-controls="data" aria-selected="false" tabindex="-1">
+                <span class="emoji" aria-hidden="true">💾</span> Daten
+            </button>
         </div>
 
-        <div class="status-area">
-            <div class="error-message" id="errorMessage"></div>
-            <div class="success-message" id="successMessage"></div>
-        </div>
+        <!-- ══════════ Spiel eintragen ══════════ -->
+        <section id="add-match" class="tab-content active" role="tabpanel" aria-labelledby="tab-add-match" tabindex="0">
+            <h2><span class="emoji" aria-hidden="true">🏸</span> Neues Spiel eintragen</h2>
 
-        <div class="tab-container">
-            <div class="tab active" onclick="openTab(this, 'add-match')">
-                <span class="emoji">🏸</span> Spiel eintragen
-            </div>
-            <div class="tab" onclick="openTab(this, 'rankings')">
-                <span class="emoji">🏅</span> Rangliste
-            </div>
-            <div class="tab" onclick="openTab(this, 'elo-chart'); showChartType('singles')">
-                <span class="emoji">📈</span> ELO-Verlauf
-            </div>
-            <div class="tab" onclick="openTab(this, 'history')">
-                <span class="emoji">📜</span> Spielverlauf
-            </div>
-            <div class="tab" onclick="openTab(this, 'add-player')">
-                <span class="emoji">➕</span> Spieler
-            </div>
-        </div>
-
-        <div id="add-match" class="tab-content active">
-            <h2><span class="emoji">🏸</span> Neues Spiel eintragen</h2>
-
-            <div class="game-mode-selector">
-                <button class="mode-button active" data-mode="singles" onclick="selectGameMode('singles')">Einzel</button>
-                <button class="mode-button" data-mode="doubles" onclick="selectGameMode('doubles')">Doppel</button>
+            <div class="game-mode-selector" role="group" aria-label="Spielmodus">
+                <button type="button" class="mode-button active" data-mode="singles" aria-pressed="true">Einzel</button>
+                <button type="button" class="mode-button" data-mode="doubles" aria-pressed="false">Doppel</button>
             </div>
 
-            <!-- Einzel-Spiel Interface -->
+            <div class="form-group">
+                <label for="match-date">Zeitpunkt des Spiels:</label>
+                <input type="datetime-local" id="match-date">
+                <p class="field-hint">Vorbelegt mit „jetzt“. Für nachgetragene Spiele anpassen — die ELO-Berechnung folgt der Chronologie.</p>
+            </div>
+
+            <div class="form-group">
+                <fieldset class="score-fieldset">
+                    <legend>Satzergebnis (optional):</legend>
+                    <div class="score-row">
+                        <label for="winner-score">Gewinner</label>
+                        <input type="number" id="winner-score" min="0" max="99" inputmode="numeric" placeholder="21">
+                        <span aria-hidden="true">:</span>
+                        <label for="loser-score">Verlierer</label>
+                        <input type="number" id="loser-score" min="0" max="99" inputmode="numeric" placeholder="19">
+                    </div>
+                </fieldset>
+                <p class="field-hint">Beeinflusst die ELO nicht. Benötigt die Migration <code>supabase/migrate_scores.sql</code>.</p>
+            </div>
+
+            <!-- ── Einzel ── -->
             <div id="singles-interface">
                 <div class="form-group">
                     <label for="player-search">Spieler suchen:</label>
-                    <input type="text" id="player-search" oninput="filterPlayers()" placeholder="Namen eingeben...">
+                    <input type="search" id="player-search" placeholder="Namen eingeben...">
                 </div>
 
+                <p class="field-hint">Erster Klick = Gewinner, zweiter Klick = Verlierer.</p>
                 <div class="player-list" id="playerList"></div>
 
                 <div class="form-group">
@@ -77,14 +146,17 @@
                     </select>
                 </div>
 
-                <button onclick="recordMatch()">Einzel-Spiel eintragen</button>
+                <div class="button-row">
+                    <button type="button" id="record-singles" data-requires-config>Einzel-Spiel eintragen</button>
+                    <button type="button" id="clear-singles" class="btn-secondary">Auswahl zurücksetzen</button>
+                </div>
+                <p class="field-hint" id="singles-hint" role="status"></p>
             </div>
 
-            <!-- Doppel-Spiel Interface -->
-            <div id="doubles-interface" style="display: none;">
+            <!-- ── Doppel ── -->
+            <div id="doubles-interface" hidden>
                 <div class="form-group">
-                    <label>Spieler für Teams auswählen:</label>
-                    <p style="color: #666; font-size: 14px;">Klicke auf die Spieler um sie den Teams zuzuordnen. Erste zwei Klicks = Team 1, nächste zwei = Team 2</p>
+                    <p class="field-hint">Klicke auf die Spieler, um sie den Teams zuzuordnen. Erste zwei Klicks = Team 1, nächste zwei = Team 2.</p>
                 </div>
 
                 <div class="player-selection-grid" id="doublesPlayerGrid"></div>
@@ -92,17 +164,17 @@
                 <div class="team-selection">
                     <div class="team" id="team1">
                         <h3>Team 1</h3>
-                        <div class="team-players" id="team1-players">
+                        <div class="team-players">
                             <div>Spieler 1: <span id="team1-player1">-</span></div>
                             <div>Spieler 2: <span id="team1-player2">-</span></div>
                         </div>
                     </div>
 
-                    <div class="vs-indicator">VS</div>
+                    <div class="vs-indicator" aria-hidden="true">VS</div>
 
                     <div class="team" id="team2">
                         <h3>Team 2</h3>
-                        <div class="team-players" id="team2-players">
+                        <div class="team-players">
                             <div>Spieler 1: <span id="team2-player1">-</span></div>
                             <div>Spieler 2: <span id="team2-player2">-</span></div>
                         </div>
@@ -118,113 +190,154 @@
                     </select>
                 </div>
 
-                <button onclick="recordDoublesMatch()">Doppel-Spiel eintragen</button>
-                <button onclick="clearTeams()" style="background: #FF6B6B; margin-left: 10px;">Teams zurücksetzen</button>
-            </div>
-        </div>
-
-        <div id="add-player" class="tab-content">
-            <h2><span class="emoji">➕</span> Neuen Spieler hinzufügen</h2>
-            <div class="form-group">
-                <label for="playerName">Vorname:</label>
-                <input type="text" id="playerName" placeholder="Vorname eingeben">
-            </div>
-            <button onclick="addPlayer()">Spieler hinzufügen</button>
-        </div>
-
-        <div id="rankings" class="tab-content">
-            <h2><span class="emoji">🏅</span> Rangliste</h2>
-
-            <div class="ranking-tabs">
-                <button class="ranking-tab active" data-type="singles" onclick="showRanking('singles')">Einzel</button>
-                <button class="ranking-tab" data-type="doubles" onclick="showRanking('doubles')">Doppel</button>
-            </div>
-
-            <div id="singles-ranking">
-                <div class="table-scroll">
-                    <table id="singlesRankingsTable">
-                        <thead>
-                            <tr>
-                                <th>Rang</th>
-                                <th>Spieler</th>
-                                <th>Einzel-Elo</th>
-                                <th>Spiele</th>
-                                <th>Siege</th>
-                                <th>Niederlagen</th>
-                                <th>Serie</th>
-                            </tr>
-                        </thead>
-                        <tbody id="singlesRankingsBody"></tbody>
-                    </table>
+                <div class="button-row">
+                    <button type="button" id="record-doubles" data-requires-config>Doppel-Spiel eintragen</button>
+                    <button type="button" id="swap-teams" class="btn-secondary">Teams tauschen</button>
+                    <button type="button" id="clear-teams" class="btn-secondary">Teams zurücksetzen</button>
                 </div>
+                <p class="field-hint" id="doubles-hint" role="status"></p>
             </div>
+        </section>
 
-            <div id="doubles-ranking" style="display: none;">
-                <div class="table-scroll">
-                    <table id="doublesRankingsTable">
-                        <thead>
-                            <tr>
-                                <th>Rang</th>
-                                <th>Spieler</th>
-                                <th>Doppel-Elo</th>
-                                <th>Spiele</th>
-                                <th>Siege</th>
-                                <th>Niederlagen</th>
-                                <th>Serie</th>
-                            </tr>
-                        </thead>
-                        <tbody id="doublesRankingsBody"></tbody>
-                    </table>
+        <!-- ══════════ Spieler ══════════ -->
+        <section id="add-player" class="tab-content" role="tabpanel" aria-labelledby="tab-add-player" tabindex="0" hidden>
+            <h2><span class="emoji" aria-hidden="true">➕</span> Neuen Spieler hinzufügen</h2>
+            <form id="add-player-form">
+                <div class="form-group">
+                    <label for="playerName">Name oder Spitzname:</label>
+                    <input type="text" id="playerName" name="playerName" placeholder="z. B. Anna" autocomplete="off">
+                    <p class="field-hint">Muss eindeutig sein — bei zwei gleichen Vornamen z. B. „Tom K.“ und „Tom S.“.</p>
                 </div>
+                <button type="submit" data-requires-config>Spieler hinzufügen</button>
+            </form>
+        </section>
+
+        <!-- ══════════ Rangliste ══════════ -->
+        <section id="rankings" class="tab-content" role="tabpanel" aria-labelledby="tab-rankings" tabindex="0" hidden>
+            <h2><span class="emoji" aria-hidden="true">🏅</span> Rangliste</h2>
+
+            <div class="ranking-tabs" role="group" aria-label="Ranglisten-Art">
+                <button type="button" class="ranking-tab active" data-type="singles" aria-pressed="true">Einzel</button>
+                <button type="button" class="ranking-tab" data-type="doubles" aria-pressed="false">Doppel</button>
             </div>
-        </div>
 
-        <!-- Lade-Overlay -->
-        <div id="app-loader" class="app-overlay" aria-live="polite" aria-label="Ladevorgang läuft...">
-            <div class="app-spinner"></div>
-        </div>
+            <div class="ranking-controls">
+                <div class="form-group">
+                    <label for="ranking-search">Spieler filtern:</label>
+                    <input type="search" id="ranking-search" placeholder="Namen eingeben...">
+                </div>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="hide-inactive" checked>
+                    Nur Spieler mit Spielen anzeigen
+                </label>
+            </div>
 
-        <div id="elo-chart" class="tab-content">
-            <h2><span class="emoji">📈</span> ELO-Verlauf</h2>
-            <div class="chart-type-tabs">
-                <button class="chart-tab active" onclick="showChartType('singles')">Einzel</button>
-                <button class="chart-tab" onclick="showChartType('doubles')">Doppel</button>
+            <div class="table-scroll">
+                <table id="rankingsTable">
+                    <caption class="sr-only">Rangliste, sortierbar über die Spaltenköpfe</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Rang</th>
+                            <th scope="col" aria-sort="none"><button type="button" class="th-sort" data-sort="name">Spieler</button></th>
+                            <th scope="col" aria-sort="descending"><button type="button" class="th-sort" data-sort="elo" id="th-elo">ELO</button></th>
+                            <th scope="col" aria-sort="none"><button type="button" class="th-sort" data-sort="matches">Spiele</button></th>
+                            <th scope="col" aria-sort="none"><button type="button" class="th-sort" data-sort="wins">Siege</button></th>
+                            <th scope="col" aria-sort="none"><button type="button" class="th-sort" data-sort="losses">Niederlagen</button></th>
+                            <th scope="col">Serie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankingsBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ══════════ ELO-Verlauf ══════════ -->
+        <section id="elo-chart" class="tab-content" role="tabpanel" aria-labelledby="tab-elo-chart" tabindex="0" hidden>
+            <h2><span class="emoji" aria-hidden="true">📈</span> ELO-Verlauf</h2>
+            <div class="chart-type-tabs" role="group" aria-label="Diagramm-Art">
+                <button type="button" class="chart-tab active" data-type="singles" aria-pressed="true">Einzel</button>
+                <button type="button" class="chart-tab" data-type="doubles" aria-pressed="false">Doppel</button>
             </div>
             <div class="chart-container">
-                <canvas id="eloChart"></canvas>
+                <canvas id="eloChart" role="img" aria-label="ELO-Verlauf aller Spieler über die Zeit"></canvas>
             </div>
-        </div>
+        </section>
 
-        <div id="history" class="tab-content">
-            <h2><span class="emoji">📜</span> Spielverlauf</h2>
+        <!-- ══════════ Spielverlauf ══════════ -->
+        <section id="history" class="tab-content" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden>
+            <h2><span class="emoji" aria-hidden="true">📜</span> Spielverlauf</h2>
             <div class="table-scroll">
-            <table id="historyTable">
-                <thead>
-                    <tr>
-                        <th>Datum</th>
-                        <th>Typ</th>
-                        <th>Gewinner</th>
-                        <th>Verlierer</th>
-                        <th>Elo-Änderung</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="historyBody"></tbody>
-            </table>
+                <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th scope="col">Datum</th>
+                            <th scope="col">Typ</th>
+                            <th scope="col">Gewinner</th>
+                            <th scope="col">Verlierer</th>
+                            <th scope="col">ELO-Änderung</th>
+                            <th scope="col"><span class="sr-only">Aktion</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
             </div>
-        </div>
+        </section>
+
+        <!-- ══════════ Daten ══════════ -->
+        <section id="data" class="tab-content" role="tabpanel" aria-labelledby="tab-data" tabindex="0" hidden>
+            <h2><span class="emoji" aria-hidden="true">💾</span> Daten sichern und übertragen</h2>
+
+            <h3>Backup</h3>
+            <p>Lädt Spieler und Spiele als JSON-Datei herunter. Ohne Backup ist das Supabase-Projekt die einzige Kopie eurer Daten.</p>
+            <div class="button-row">
+                <button type="button" id="export-json">Backup herunterladen (JSON)</button>
+                <button type="button" id="export-csv" class="btn-secondary">Rangliste als CSV</button>
+            </div>
+
+            <h3>Wiederherstellen</h3>
+            <p>Liest ein Backup ein und überträgt es nach Supabase. Vorhandene Spieler und Spiele bleiben erhalten.</p>
+            <div class="form-group">
+                <label for="import-file">Backup-Datei wählen:</label>
+                <input type="file" id="import-file" accept="application/json,.json" data-requires-config>
+            </div>
+            <div id="import-preview" class="import-preview" hidden></div>
+
+            <h3>Spieler in einem Rutsch anlegen</h3>
+            <div class="form-group">
+                <label for="bulk-players">Ein Name pro Zeile:</label>
+                <textarea id="bulk-players" rows="6" placeholder="Anna&#10;Ben&#10;Clara"></textarea>
+            </div>
+            <button type="button" id="bulk-add" data-requires-config>Spieler anlegen</button>
+        </section>
     </div>
 
-    <!-- Spieler-Profil Modal -->
-    <div id="player-profile-modal" class="modal-overlay" style="display:none" onclick="closeProfileModal(event)">
-        <div class="modal-card" id="profile-card">
-            <button class="modal-close" onclick="closePlayerProfile()">✕</button>
+    <!-- Lade-Overlay -->
+    <div id="app-loader" class="app-overlay" role="status" aria-label="Daten werden geladen" hidden>
+        <div class="app-spinner" aria-hidden="true"></div>
+    </div>
+
+    <!-- ══════════ Spieler-Profil ══════════ -->
+    <div id="player-profile-modal" class="modal-overlay" hidden>
+        <div class="modal-card" id="profile-card" role="dialog" aria-modal="true" aria-labelledby="profile-name">
+            <button type="button" class="modal-close" id="profile-close" aria-label="Profil schließen">
+                <span aria-hidden="true">✕</span>
+            </button>
+
             <div class="profile-header">
-                <div class="profile-avatar" id="profile-avatar"></div>
-                <div>
+                <div class="profile-avatar" id="profile-avatar" aria-hidden="true"></div>
+                <div class="profile-heading">
                     <h2 class="profile-name" id="profile-name"></h2>
+                    <button type="button" id="profile-rename" class="btn-link">Umbenennen</button>
                 </div>
             </div>
+
+            <form id="profile-rename-form" class="rename-form" hidden>
+                <label for="profile-rename-input">Neuer Name:</label>
+                <input type="text" id="profile-rename-input" autocomplete="off">
+                <button type="submit">Speichern</button>
+                <button type="button" id="profile-rename-cancel" class="btn-secondary">Abbrechen</button>
+            </form>
+
             <div class="profile-stats">
                 <div class="stat-box">
                     <div class="stat-label">Einzel-ELO</div>
@@ -237,27 +350,29 @@
                     <div class="stat-sub" id="profile-doubles-record"></div>
                 </div>
             </div>
-            <div class="profile-chart-tabs">
-                <button class="profile-chart-tab active" data-type="singles">Einzel</button>
-                <button class="profile-chart-tab" data-type="doubles">Doppel</button>
+
+            <div class="profile-chart-tabs" role="group" aria-label="Diagramm-Art">
+                <button type="button" class="profile-chart-tab active" data-type="singles" aria-pressed="true">Einzel</button>
+                <button type="button" class="profile-chart-tab" data-type="doubles" aria-pressed="false">Doppel</button>
             </div>
-            <div class="chart-container" style="margin-bottom:20px">
-                <canvas id="profileChart"></canvas>
+            <div class="chart-container profile-chart-container">
+                <canvas id="profileChart" role="img" aria-label="ELO-Verlauf dieses Spielers"></canvas>
             </div>
-            <h3 style="margin:0 0 10px">Letzte Spiele</h3>
+
+            <h3>Letzte Spiele</h3>
             <div class="table-scroll">
-            <table id="profile-history-table">
-                <thead>
-                    <tr>
-                        <th>Datum</th>
-                        <th>Typ</th>
-                        <th>Gegner</th>
-                        <th>Ergebnis</th>
-                        <th>Elo</th>
-                    </tr>
-                </thead>
-                <tbody id="profile-history-body"></tbody>
-            </table>
+                <table id="profile-history-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Datum</th>
+                            <th scope="col">Typ</th>
+                            <th scope="col">Gegner</th>
+                            <th scope="col">Ergebnis</th>
+                            <th scope="col">ELO</th>
+                        </tr>
+                    </thead>
+                    <tbody id="profile-history-body"></tbody>
+                </table>
             </div>
         </div>
     </div>

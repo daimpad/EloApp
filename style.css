@@ -1,5 +1,5 @@
-/* ================= BRAND TOKENS ================= */
-/* Werden per JS aus config.js überschrieben (BRANDING-Objekt). */
+/* ================= TOKENS ================= */
+/* Marken-Tokens werden per JS aus config.js überschrieben (BRANDING-Objekt). */
 
 :root {
     --brand-primary:      #c51216;
@@ -7,6 +7,19 @@
     --brand-primary-glow: rgba(197, 18, 22, 0.3);
     --brand-font-heading: 'Fredoka One', cursive;
     --brand-font-body:    'Quicksand', sans-serif;
+
+    /* Semantische Farben. Alle erfüllen 4.5:1 gegen die hellen Flächen,
+       auf denen sie stehen — die vorherigen Werte (#27ae60, #e67e22,
+       #95a5a6, #888) lagen zwischen 2.6:1 und 3.4:1 und trugen dabei
+       echte Information. */
+    --color-positive: #1e7f46;
+    --color-negative: #c0392b;
+    --color-streak:   #a35a00;
+    --color-muted:    #5f6b6c;
+    --color-text:     #2c3533;
+
+    --surface-soft:   #f9f9f9;
+    --border-soft:    #e0e0e0;
 }
 
 /* ================= BASE ================= */
@@ -18,9 +31,14 @@
 body {
     font-family: var(--brand-font-body);
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    color: var(--color-text);
     min-height: 100vh;
     margin: 0;
     padding: 20px;
+}
+
+body.modal-open {
+    overflow: hidden;
 }
 
 .container {
@@ -32,11 +50,40 @@ body {
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
 }
 
+[hidden] {
+    display: none !important;
+}
+
+/* Nur für Screenreader — trägt Bedeutung, die sonst allein im Emoji
+   oder in der Farbe steckt. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Sichtbarer Fokus für Tastaturnutzung — vorher gab es keinen. */
+:focus-visible {
+    outline: 3px solid var(--brand-primary);
+    outline-offset: 2px;
+}
+
 /* ================= HEADER ================= */
 
 .header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 16px;
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 24px;
 }
 
 .header h1 {
@@ -44,32 +91,117 @@ body {
     font-size: 2.5em;
     color: var(--brand-primary);
     margin: 0;
+    flex: 1 1 100%;
 }
 
-/* ================= STATUS MESSAGES ================= */
+.header-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
 
-.status-area {
+.last-synced {
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+.btn-refresh {
+    background: var(--surface-soft);
+    color: var(--color-text);
+    padding: 7px 16px;
+    font-size: 14px;
+    border: 2px solid var(--border-soft);
+}
+
+.btn-refresh:hover:not(:disabled) {
+    background: var(--border-soft);
+    color: var(--color-text);
+    box-shadow: none;
+}
+
+/* ================= KONFIGURATIONS-PANEL ================= */
+
+.config-panel {
+    border: 2px solid var(--brand-primary);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    background: #fff5f5;
+}
+
+.config-panel h2 {
+    margin: 0 0 10px;
+    font-family: var(--brand-font-heading);
+    color: var(--brand-primary);
+    font-size: 1.2em;
+}
+
+.config-panel p  { margin: 0 0 10px; }
+.config-panel ol { margin: 0 0 10px; padding-left: 22px; }
+.config-panel li { margin-bottom: 4px; }
+
+.config-panel code {
+    background: white;
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.92em;
+}
+
+/* ================= TOASTS ================= */
+
+.toast-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     margin-bottom: 15px;
 }
 
-.error-message {
-    display: none;
-    background: #ff6b6b;
-    color: white;
-    padding: 10px 15px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    font-weight: bold;
+.toast-stack:empty {
+    margin-bottom: 0;
 }
 
-.success-message {
-    display: none;
-    background: #4ecdc4;
-    color: white;
-    padding: 10px 15px;
+.toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 11px 15px;
     border-radius: 8px;
-    margin-bottom: 10px;
     font-weight: bold;
+    color: white;
+    animation: toast-in 0.2s ease;
+}
+
+.toast-text  { flex: 1; }
+
+.toast-error   { background: #b3261e; }
+.toast-success { background: #14776e; }
+
+.toast-close {
+    background: transparent;
+    color: inherit;
+    border: none;
+    padding: 0 2px;
+    min-height: 0;
+    font-size: 15px;
+    line-height: 1.3;
+    box-shadow: none;
+    opacity: 0.8;
+}
+
+.toast-close:hover {
+    background: transparent;
+    color: inherit;
+    opacity: 1;
+    transform: none;
+    box-shadow: none;
+}
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ================= TABS ================= */
@@ -84,19 +216,26 @@ body {
 .tab {
     padding: 10px 20px;
     background: #f0f0f0;
+    color: var(--color-text);
+    border: none;
     border-radius: 25px;
     cursor: pointer;
+    font-family: var(--brand-font-body);
+    font-size: 15px;
     font-weight: bold;
     transition: all 0.3s ease;
     user-select: none;
 }
 
 .tab:hover {
-    background: #e0e0e0;
+    background: var(--border-soft);
+    color: var(--color-text);
     transform: translateY(-2px);
+    box-shadow: none;
 }
 
-.tab.active {
+.tab.active,
+.tab.active:hover {
     background: var(--brand-primary);
     color: white;
     box-shadow: 0 4px 15px var(--brand-primary-glow);
@@ -110,24 +249,30 @@ body {
     display: block;
 }
 
-/* ================= FORMS ================= */
+.tab-content:focus {
+    outline: none;
+}
+
+/* ================= FORMULARE ================= */
 
 .form-group {
     margin-bottom: 20px;
 }
 
-.form-group label {
+.form-group label,
+.checkbox-row {
     display: block;
     font-weight: bold;
     margin-bottom: 8px;
-    color: #333;
+    color: var(--color-text);
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.form-group textarea {
     width: 100%;
     padding: 12px;
-    border: 2px solid #e0e0e0;
+    border: 2px solid var(--border-soft);
     border-radius: 10px;
     font-size: 16px;
     font-family: var(--brand-font-body);
@@ -135,9 +280,49 @@ body {
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
     outline: none;
     border-color: var(--brand-primary);
+}
+
+.field-hint {
+    font-size: 13px;
+    color: var(--color-muted);
+    margin: 6px 0 0;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+}
+
+.checkbox-row input {
+    width: auto;
+    min-height: 20px;
+}
+
+.ranking-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.ranking-controls .form-group {
+    flex: 1 1 220px;
+    margin-bottom: 0;
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
 }
 
 button {
@@ -153,48 +338,103 @@ button {
     transition: all 0.3s ease;
 }
 
-button:hover {
+button:hover:not(:disabled) {
     background: var(--brand-primary-dark);
     transform: translateY(-2px);
     box-shadow: 0 5px 15px var(--brand-primary-glow);
 }
 
-button:active {
+button:active:not(:disabled) {
     transform: translateY(0);
 }
 
-/* ================= GAME MODE SELECTOR ================= */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
-.game-mode-selector {
+.btn-secondary {
+    background: var(--surface-soft);
+    color: var(--color-text);
+    border: 2px solid var(--border-soft);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--border-soft);
+    color: var(--color-text);
+    box-shadow: none;
+}
+
+.btn-link {
+    background: none;
+    color: var(--brand-primary);
+    border: none;
+    padding: 2px 0;
+    font-size: 14px;
+    text-decoration: underline;
+    box-shadow: none;
+}
+
+.btn-link:hover:not(:disabled) {
+    background: none;
+    color: var(--brand-primary-dark);
+    transform: none;
+    box-shadow: none;
+}
+
+/* ── Pill-Umschalter ──────────────────────────────────────────────────────
+   mode-button, ranking-tab, chart-tab und profile-chart-tab hatten viermal
+   dieselben vier Regeln. Jetzt einmal — Abweichungen stehen darunter. */
+
+.game-mode-selector,
+.ranking-tabs,
+.chart-type-tabs,
+.profile-chart-tabs {
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
 }
 
-.mode-button {
-    background: #f0f0f0;
-    color: #333;
+.mode-button,
+.ranking-tab,
+.chart-tab,
+.profile-chart-tab {
     flex: 1;
+    background: #f0f0f0;
+    color: var(--color-text);
     border-radius: 10px;
 }
 
-.mode-button.active {
+.mode-button:hover:not(:disabled),
+.ranking-tab:hover:not(:disabled),
+.chart-tab:hover:not(:disabled),
+.profile-chart-tab:hover:not(:disabled) {
+    background: var(--border-soft);
+    color: var(--color-text);
+    box-shadow: none;
+    transform: none;
+}
+
+.mode-button.active,
+.ranking-tab.active,
+.chart-tab.active,
+.profile-chart-tab.active,
+.mode-button.active:hover,
+.ranking-tab.active:hover,
+.chart-tab.active:hover,
+.profile-chart-tab.active:hover {
     background: var(--brand-primary);
     color: white;
 }
 
-.mode-button:hover {
-    background: #e0e0e0;
-    color: #333;
-    box-shadow: none;
+.profile-chart-tabs { margin-bottom: 12px; }
+
+.profile-chart-tab {
+    font-size: 14px;
+    padding: 8px 16px;
 }
 
-.mode-button.active:hover {
-    background: var(--brand-primary-dark);
-    color: white;
-}
-
-/* ================= PLAYER CARDS ================= */
+/* ================= SPIELERKARTEN ================= */
 
 .player-list,
 .player-selection-grid {
@@ -204,71 +444,97 @@ button:active {
     margin-bottom: 20px;
 }
 
-.player-card {
+/* Die Karten sind <button>-Elemente, damit sie per Tastatur erreichbar sind —
+   deshalb hier die Basis-Button-Optik zurücksetzen. */
+.player-card,
+.doubles-player-card {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 3px;
     padding: 12px;
-    background: #f9f9f9;
-    border: 2px solid #e0e0e0;
+    background: var(--surface-soft);
+    color: var(--color-text);
+    border: 2px solid var(--border-soft);
     border-radius: 12px;
     cursor: pointer;
+    font-family: var(--brand-font-body);
+    font-weight: normal;
     transition: all 0.2s ease;
-    min-width: 80px;
     text-align: center;
+    box-shadow: none;
 }
 
-.player-card:hover {
+.player-card        { min-width: 80px; }
+.doubles-player-card { min-width: 90px; }
+
+.player-card:hover:not(:disabled),
+.doubles-player-card:hover:not(:disabled) {
     border-color: var(--brand-primary);
     background: #fff5f5;
+    color: var(--color-text);
     transform: translateY(-2px);
+    box-shadow: none;
 }
 
-.player-card.selected {
-    border-color: var(--brand-primary);
-    background: #ffe0e0;
-    box-shadow: 0 3px 10px var(--brand-primary-glow);
-}
-
-.player-card .avatar {
+.player-card .avatar,
+.doubles-player-card .avatar {
     font-size: 28px;
-    margin-bottom: 5px;
+    line-height: 1;
 }
 
-.player-card .name {
+.player-card .name,
+.doubles-player-card .name {
     font-size: 13px;
     font-weight: bold;
-    color: #333;
 }
 
-.doubles-player-card {
-    padding: 12px;
-    background: #f9f9f9;
-    border: 2px solid #e0e0e0;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 90px;
-    text-align: center;
+.card-elo {
+    font-size: 12px;
+    color: var(--color-muted);
 }
 
-.doubles-player-card:hover {
-    border-color: var(--brand-primary);
-    background: #fff5f5;
-    transform: translateY(-2px);
+/* Gewinner und Verlierer klar unterscheidbar — vorher trugen beide denselben
+   roten Rahmen und die Rolle war nur der Reihenfolge zu entnehmen. */
+.card-badge {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: bold;
+    color: white;
+}
+
+.player-card.selected-winner {
+    border-color: var(--color-positive);
+    background: #e8f6ee;
+}
+
+.player-card.selected-winner .card-badge {
+    background: var(--color-positive);
+}
+
+.player-card.selected-loser {
+    border-color: var(--color-negative);
+    background: #fdeeec;
+}
+
+.player-card.selected-loser .card-badge {
+    background: var(--color-negative);
 }
 
 .doubles-player-card.selected-team1 {
-    border-color: #4ecdc4;
+    border-color: #128277;
     background: #e0f9f7;
 }
 
 .doubles-player-card.selected-team2 {
-    border-color: #ffe66d;
+    border-color: #9a6f00;
     background: #fff9e0;
 }
 
-/* ================= TEAM SELECTION ================= */
+/* ================= TEAMS ================= */
 
 .team-selection {
     display: flex;
@@ -282,25 +548,24 @@ button:active {
     flex: 1;
     min-width: 150px;
     padding: 15px;
-    border: 2px solid #e0e0e0;
+    border: 2px solid var(--border-soft);
     border-radius: 12px;
-    background: #f9f9f9;
+    background: var(--surface-soft);
     transition: all 0.3s ease;
 }
 
 .team h3 {
     margin: 0 0 10px 0;
-    color: #333;
     font-family: var(--brand-font-heading);
 }
 
 .team.team-winner {
-    border-color: #4ecdc4;
+    border-color: #128277;
     background: #e0f9f7;
 }
 
 .team.team-loser {
-    border-color: #ff6b6b;
+    border-color: var(--color-negative);
     background: #fff0f0;
 }
 
@@ -312,59 +577,7 @@ button:active {
     flex-shrink: 0;
 }
 
-/* ================= RANKINGS ================= */
-
-.ranking-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.ranking-tab {
-    background: #f0f0f0;
-    color: #333;
-    border-radius: 10px;
-    flex: 1;
-}
-
-.ranking-tab.active {
-    background: var(--brand-primary);
-    color: white;
-}
-
-.ranking-tab:hover {
-    background: #e0e0e0;
-    color: #333;
-    box-shadow: none;
-}
-
-.ranking-tab.active:hover {
-    background: var(--brand-primary-dark);
-    color: white;
-}
-
-/* ================= DELETE BUTTON ================= */
-
-.btn-delete-match {
-    background: none;
-    border: none;
-    font-size: 16px;
-    cursor: pointer;
-    opacity: 0.35;
-    padding: 2px 6px;
-    border-radius: 6px;
-    transition: opacity 0.2s ease, background 0.2s ease;
-    box-shadow: none;
-}
-
-.btn-delete-match:hover {
-    opacity: 1;
-    background: #ffe0e0;
-    transform: none;
-    box-shadow: none;
-}
-
-/* ================= TABLES ================= */
+/* ================= TABELLEN ================= */
 
 table {
     width: 100%;
@@ -390,10 +603,73 @@ td {
 }
 
 tr:last-child td { border-bottom: none; }
+tr:hover td      { background: var(--surface-soft); }
 
-tr:hover td { background: #f9f9f9; }
+.empty-cell {
+    text-align: center;
+    color: var(--color-muted);
+    padding: 26px 12px;
+}
 
-/* ================= RANK BADGES ================= */
+.empty-hint {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 18px;
+    border: 2px dashed var(--border-soft);
+    border-radius: 12px;
+    color: var(--color-muted);
+}
+
+.empty-hint p { margin: 0; }
+
+/* Sortierbare Spaltenköpfe */
+.th-sort {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    padding: 0;
+    cursor: pointer;
+    box-shadow: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.th-sort:hover:not(:disabled) {
+    background: none;
+    color: inherit;
+    transform: none;
+    box-shadow: none;
+    text-decoration: underline;
+}
+
+th[data-direction="asc"]  .th-sort::after { content: '▲'; font-size: 9px; }
+th[data-direction="desc"] .th-sort::after { content: '▼'; font-size: 9px; }
+
+.player-link {
+    background: none;
+    border: none;
+    color: var(--color-text);
+    font: inherit;
+    padding: 0;
+    cursor: pointer;
+    box-shadow: none;
+    text-align: left;
+}
+
+.player-link:hover:not(:disabled) {
+    background: none;
+    color: var(--brand-primary);
+    transform: none;
+    box-shadow: none;
+    text-decoration: underline;
+}
+
+/* ================= BADGES ================= */
 
 .rank-badge {
     display: inline-flex;
@@ -407,11 +683,9 @@ tr:hover td { background: #f9f9f9; }
     font-size: 14px;
 }
 
-.rank-1 { background: linear-gradient(135deg, #ffd700, #ffb300); }
-.rank-2 { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); }
-.rank-3 { background: linear-gradient(135deg, #cd7f32, #a0522d); }
-
-/* ================= MATCH TYPE INDICATOR ================= */
+.rank-1 { background: linear-gradient(135deg, #b8860b, #8a6508); }
+.rank-2 { background: linear-gradient(135deg, #8d8d8d, #6f6f6f); }
+.rank-3 { background: linear-gradient(135deg, #a9662a, #834518); }
 
 .match-type-indicator {
     display: inline-block;
@@ -419,41 +693,96 @@ tr:hover td { background: #f9f9f9; }
     border-radius: 12px;
     font-size: 12px;
     font-weight: bold;
+    white-space: nowrap;
 }
 
-.match-singles {
-    background: #e8f4fd;
-    color: #2980b9;
+.match-singles { background: #e8f4fd; color: #1c5f8b; }
+.match-doubles { background: #e8f8f5; color: #14776e; }
+
+.elo-positive { color: var(--color-positive); font-weight: bold; }
+.elo-negative { color: var(--color-negative); font-weight: bold; }
+
+.result-win  { color: var(--color-positive); font-weight: bold; }
+.result-loss { color: var(--color-negative); font-weight: bold; }
+
+.streak-win {
+    font-weight: bold;
+    color: var(--color-streak);
+    white-space: nowrap;
 }
 
-.match-doubles {
-    background: #e8f8f5;
-    color: #27ae60;
+.streak-loss {
+    font-weight: bold;
+    color: var(--color-muted);
+    white-space: nowrap;
 }
 
-/* ================= ELO CHANGE ================= */
-
-.elo-positive { color: #27ae60; font-weight: bold; }
-.elo-negative { color: #e74c3c; font-weight: bold; }
-
-/* ================= TEAM DISPLAY IN HISTORY ================= */
+.streak-none {
+    color: var(--color-muted);
+}
 
 .team-display {
     font-size: 14px;
     line-height: 1.6;
 }
 
-/* ================= LOADING OVERLAY ================= */
+.btn-delete-match {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    /* 0.35 war praktisch unsichtbar, 2px/6px weit unter dem Touch-Target. */
+    opacity: 0.6;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    border-radius: 8px;
+    transition: opacity 0.2s ease, background 0.2s ease;
+    box-shadow: none;
+}
+
+.btn-delete-match:hover:not(:disabled) {
+    opacity: 1;
+    background: #ffe0e0;
+    transform: none;
+    box-shadow: none;
+}
+
+/* ================= DATEN-TAB ================= */
+
+#data h3 {
+    font-family: var(--brand-font-heading);
+    margin: 24px 0 6px;
+}
+
+#data > p {
+    margin: 0 0 12px;
+    color: var(--color-muted);
+}
+
+.import-preview {
+    border: 2px solid var(--brand-primary);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: #fff5f5;
+}
+
+.import-preview p {
+    margin: 0 0 12px;
+    font-weight: bold;
+}
+
+/* ================= LADE-OVERLAY ================= */
 
 .app-overlay {
-    display: none;
     position: fixed;
     inset: 0;
     background: rgba(255, 255, 255, 0.85);
     z-index: 9999;
+    display: flex;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
 }
 
 .app-spinner {
@@ -470,7 +799,7 @@ tr:hover td { background: #f9f9f9; }
     to   { transform: rotate(360deg); }
 }
 
-/* ================= CONFETTI ================= */
+/* ================= KONFETTI ================= */
 
 .confetti {
     position: fixed;
@@ -488,25 +817,11 @@ tr:hover td { background: #f9f9f9; }
     100% { top: 100vh; transform: rotate(720deg) translateX(50px); opacity: 0; }
 }
 
-/* ================= STREAK BADGES ================= */
-
-.streak-win {
-    font-weight: bold;
-    color: #e67e22;
-    white-space: nowrap;
-}
-
-.streak-loss {
-    font-weight: bold;
-    color: #95a5a6;
-    white-space: nowrap;
-}
-
-/* ================= DEMO BANNER ================= */
+/* ================= DEMO-BANNER ================= */
 
 .demo-banner {
     background: linear-gradient(90deg, #FFB347, #FFD700);
-    color: #7a4800;
+    color: #6b3f00;
     font-weight: bold;
     text-align: center;
     padding: 8px 16px;
@@ -516,7 +831,7 @@ tr:hover td { background: #f9f9f9; }
     letter-spacing: 0.3px;
 }
 
-/* ================= PLAYER PROFILE MODAL ================= */
+/* ================= PROFIL-MODAL ================= */
 
 .modal-overlay {
     position: fixed;
@@ -546,12 +861,12 @@ tr:hover td { background: #f9f9f9; }
     top: 15px;
     right: 15px;
     background: #f0f0f0;
-    color: #333;
+    color: var(--color-text);
     border: none;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    font-size: 14px;
+    font-size: 15px;
     cursor: pointer;
     padding: 0;
     line-height: 1;
@@ -559,8 +874,9 @@ tr:hover td { background: #f9f9f9; }
     transition: background 0.2s;
 }
 
-.modal-close:hover {
-    background: #e0e0e0;
+.modal-close:hover:not(:disabled) {
+    background: var(--border-soft);
+    color: var(--color-text);
     transform: none;
     box-shadow: none;
 }
@@ -570,6 +886,7 @@ tr:hover td { background: #f9f9f9; }
     align-items: center;
     gap: 16px;
     margin-bottom: 20px;
+    padding-right: 48px;
 }
 
 .profile-avatar {
@@ -577,11 +894,46 @@ tr:hover td { background: #f9f9f9; }
     line-height: 1;
 }
 
+.profile-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
 .profile-name {
     font-family: var(--brand-font-heading);
     font-size: 1.8em;
     color: var(--brand-primary);
     margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.rename-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.rename-form label {
+    font-weight: bold;
+    flex: 1 1 100%;
+}
+
+.rename-form input {
+    flex: 1 1 180px;
+    padding: 10px;
+    border: 2px solid var(--border-soft);
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: var(--brand-font-body);
+}
+
+.rename-form button {
+    padding: 10px 18px;
+    font-size: 14px;
 }
 
 .profile-stats {
@@ -592,8 +944,8 @@ tr:hover td { background: #f9f9f9; }
 
 .stat-box {
     flex: 1;
-    background: #f9f9f9;
-    border: 2px solid #e0e0e0;
+    background: var(--surface-soft);
+    border: 2px solid var(--border-soft);
     border-radius: 12px;
     padding: 14px;
     text-align: center;
@@ -601,7 +953,7 @@ tr:hover td { background: #f9f9f9; }
 
 .stat-label {
     font-size: 12px;
-    color: #888;
+    color: var(--color-muted);
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -617,85 +969,41 @@ tr:hover td { background: #f9f9f9; }
 
 .stat-sub {
     font-size: 12px;
-    color: #666;
+    color: var(--color-muted);
     margin-top: 4px;
 }
 
-.profile-chart-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 12px;
-}
-
-.profile-chart-tab {
-    background: #f0f0f0;
-    color: #333;
-    border-radius: 10px;
-    flex: 1;
-    font-size: 14px;
-    padding: 8px 16px;
-}
-
-.profile-chart-tab.active {
-    background: var(--brand-primary);
-    color: white;
-}
-
-.profile-chart-tab:hover {
-    background: #e0e0e0;
-    color: #333;
-    box-shadow: none;
-}
-
-.profile-chart-tab.active:hover {
-    background: var(--brand-primary-dark);
-    color: white;
-}
-
-tr.win-row td { background: #f0faf7; }
-tr.loss-row td { background: #fff5f5; }
-tr.win-row:hover td { background: #e0f5ee; }
-tr.loss-row:hover td { background: #ffe8e8; }
-
-/* ================= ELO CHART ================= */
-
-.chart-type-tabs {
-    display: flex;
-    gap: 10px;
+.profile-chart-container {
     margin-bottom: 20px;
 }
 
-.chart-tab {
-    background: #f0f0f0;
-    color: #333;
-    border-radius: 10px;
-    flex: 1;
+#profile-history-table + h3,
+.modal-card h3 {
+    margin: 0 0 10px;
+    font-family: var(--brand-font-heading);
 }
 
-.chart-tab.active {
-    background: var(--brand-primary);
-    color: white;
-}
+tr.win-row td        { background: #f0faf7; }
+tr.loss-row td       { background: #fff5f5; }
+tr.win-row:hover td  { background: #e0f5ee; }
+tr.loss-row:hover td { background: #ffe8e8; }
 
-.chart-tab:hover {
-    background: #e0e0e0;
-    color: #333;
-    box-shadow: none;
-}
-
-.chart-tab.active:hover {
-    background: var(--brand-primary-dark);
-    color: white;
-}
+/* ================= DIAGRAMM ================= */
 
 .chart-container {
     position: relative;
     width: 100%;
 }
 
-/* ================= RESPONSIVE ================= */
+.chart-empty-msg {
+    text-align: center;
+    color: var(--color-muted);
+    padding: 40px 20px;
+    margin: 0;
+}
 
-/* Scrollable table wrapper — applied in HTML via .table-scroll */
+/* ================= TABELLEN-SCROLL ================= */
+
 .table-scroll {
     width: 100%;
     overflow-x: auto;
@@ -703,21 +1011,14 @@ tr.loss-row:hover td { background: #ffe8e8; }
     border-radius: 10px;
 }
 
+/* ================= RESPONSIVE ================= */
+
 @media (max-width: 600px) {
-    body {
-        padding: 10px;
-    }
+    body    { padding: 10px; }
+    .container { padding: 14px; border-radius: 14px; }
+    .header h1 { font-size: 1.6em; }
 
-    .container {
-        padding: 14px;
-        border-radius: 14px;
-    }
-
-    .header h1 {
-        font-size: 1.6em;
-    }
-
-    /* ── Tabs: single scrollable row ── */
+    /* Tabs: eine scrollbare Zeile */
     .tab-container {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -734,21 +1035,11 @@ tr.loss-row:hover td { background: #ffe8e8; }
         font-size: 13px;
     }
 
-    /* ── Team layout ── */
-    .team-selection {
-        flex-direction: column;
-    }
+    .team-selection { flex-direction: column; }
 
-    /* ── Tables ── */
-    table {
-        font-size: 13px;
-    }
+    table   { font-size: 13px; }
+    th, td  { padding: 8px 6px; }
 
-    th, td {
-        padding: 8px 6px;
-    }
-
-    /* ── Player cards: 3-column grid on small screens ── */
     .player-list,
     .player-selection-grid {
         display: grid;
@@ -763,15 +1054,12 @@ tr.loss-row:hover td { background: #ffe8e8; }
         padding: 10px 6px;
     }
 
-    .player-card .avatar {
-        font-size: 24px;
-    }
+    .player-card .avatar,
+    .doubles-player-card .avatar { font-size: 24px; }
 
-    .player-card .name {
-        font-size: 12px;
-    }
+    .player-card .name,
+    .doubles-player-card .name   { font-size: 12px; }
 
-    /* ── Modal: full screen ── */
     .modal-overlay {
         padding: 0;
         align-items: flex-end;
@@ -783,29 +1071,17 @@ tr.loss-row:hover td { background: #ffe8e8; }
         padding: 20px 16px;
     }
 
-    .profile-stats {
-        gap: 8px;
-    }
+    .profile-stats { gap: 8px; }
+    .stat-value    { font-size: 1.6em; }
 
-    .stat-value {
-        font-size: 1.6em;
-    }
-
-    /* ── Buttons: guaranteed touch target ── */
-    button {
+    /* Garantiertes Touch-Target — aber nicht für den runden Schließen-Button,
+       dessen height sonst überschrieben und der Kreis zur Ellipse wird. */
+    button:not(.modal-close):not(.toast-close):not(.th-sort):not(.player-link):not(.btn-link) {
         min-height: 44px;
-    }
-
-    /* ── Game mode + ranking tab rows ── */
-    .game-mode-selector,
-    .ranking-tabs,
-    .chart-type-tabs,
-    .profile-chart-tabs {
-        gap: 8px;
     }
 }
 
-/* Remove hover lift effects on touch-primary devices */
+/* Keine Hover-Effekte auf Touch-Geräten */
 @media (hover: none) {
     .tab:hover,
     .player-card:hover,
@@ -817,4 +1093,80 @@ tr.loss-row:hover td { background: #ffe8e8; }
         transform: none;
         box-shadow: none;
     }
+}
+
+/* ================= REDUZIERTE BEWEGUNG ================= */
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .confetti { display: none; }
+
+    .tab:hover,
+    .player-card:hover,
+    .doubles-player-card:hover,
+    button:hover {
+        transform: none;
+    }
+
+    /* Der Spinner darf sich weiterdrehen, aber deutlich ruhiger. */
+    .app-spinner {
+        animation: none !important;
+        opacity: 0.7;
+    }
+}
+
+/* ================= SATZERGEBNIS ================= */
+
+.score-fieldset {
+    border: 2px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 10px 14px 14px;
+    margin: 0;
+}
+
+.score-fieldset legend {
+    font-weight: bold;
+    padding: 0 6px;
+    font-size: 14px;
+}
+
+.score-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.score-row label {
+    margin: 0;
+    font-size: 13px;
+    font-weight: normal;
+    color: var(--color-muted);
+}
+
+.score-row input {
+    width: 74px;
+    padding: 8px;
+    border: 2px solid var(--border-soft);
+    border-radius: 8px;
+    font-size: 16px;
+    font-family: var(--brand-font-body);
+}
+
+.match-score {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: #eef2f0;
+    color: var(--color-muted);
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
 }
