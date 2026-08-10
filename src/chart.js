@@ -1,82 +1,189 @@
-import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4/+esm';
-import { state, normaliseMatch } from './state.js';
-import { STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './elo.js';
+import { state } from './state.js';
+import { STARTING_ELO } from './elo.js';
+import { replayMatches } from './replay.js';
+import { brandColor } from './branding.js';
+import { formatDate, formatDateTime } from './format.js';
+
+// ── Chart.js laden ─────────────────────────────────────────────────────────
+//
+// Die Bibliothek liegt als eigenständiges UMD-Bundle unter vendor/ und wird
+// erst geladen, wenn wirklich ein Diagramm gezeichnet wird. Vorher kam sie per
+// statischem Import vom CDN: der Service Worker legte sie nie ab, sodass die
+// App offline gar nicht startete — und die 200 KB gingen auch zulasten aller,
+// die den Verlauf nie öffnen.
+
+let chartLib = null;
+let chartLibPromise = null;
+
+function loadChartLib() {
+    if (chartLib) return Promise.resolve(chartLib);
+    if (chartLibPromise) return chartLibPromise;
+
+    chartLibPromise = new Promise((resolve, reject) => {
+        if (globalThis.Chart) {
+            chartLib = globalThis.Chart;
+            return resolve(chartLib);
+        }
+
+        const script = document.createElement('script');
+        script.src = new URL('../vendor/chart.umd.js', import.meta.url).href;
+        script.onload = () => {
+            chartLib = globalThis.Chart;
+            if (chartLib) resolve(chartLib);
+            else reject(new Error('Diagramm-Bibliothek konnte nicht initialisiert werden.'));
+        };
+        script.onerror = () => {
+            chartLibPromise = null;
+            reject(new Error('Diagramm-Bibliothek konnte nicht geladen werden.'));
+        };
+        document.head.appendChild(script);
+    });
+
+    return chartLibPromise;
+}
 
 // ── Farbpalette ────────────────────────────────────────────────────────────
 
 const COLORS = [
-    '#c51216', '#4ECDC4', '#6A67CE', '#FFB347',
-    '#45B7D1', '#96CEB4', '#FF6B9D', '#A8E6CF',
-    '#FF8B94', '#88D8B0', '#FFCC5C', '#B8B8FF',
+    '#c51216', '#1f77b4', '#2ca02c', '#ff7f0e',
+    '#9467bd', '#17becf', '#d62728', '#8c564b',
+    '#e377c2', '#7f7f7f', '#bcbd22', '#0d5c4a',
 ];
 
-function colorFor(index) {
-    return COLORS[index % COLORS.length];
+// Ab dem 13. Spieler wiederholen sich die Farben — die Strichart macht die
+// Linien dann trotzdem unterscheidbar.
+const DASHES = [[], [6, 4], [2, 3], [10, 4, 2, 4]];
+
+function styleFor(index) {
+    return {
+        color: index === 0 ? brandColor() : COLORS[index % COLORS.length],
+        dash:  DASHES[Math.floor(index / COLORS.length) % DASHES.length],
+    };
 }
+
+/** Wie viele Linien standardmäßig sichtbar sind, bevor die Legende überläuft. */
+const VISIBLE_BY_DEFAULT = 8;
 
 // ── ELO-Verlauf berechnen ──────────────────────────────────────────────────
 
 /**
  * Berechnet den ELO-Verlauf jedes Spielers aus der Match-History.
+ *
+ * Nutzt denselben Replay wie recalculateStatsFromHistory() — der Endwert jeder
+ * Kurve ist damit garantiert identisch mit dem Wert in der Rangliste. Vorher
+ * waren das zwei unabhängige Implementierungen, die bereits auseinanderdrifteten.
+ *
  * @param {'singles'|'doubles'} type
- * @returns {{ [playerId]: Array<{ matchIndex: number, date: string, elo: number }> }}
+ * @returns {{ [playerId: string]: Array<{ x: number, y: number, date: string }> }}
  */
 export function buildEloHistory(type = 'singles') {
-    const currentElo = {};
-    Object.keys(state.players).forEach(id => { currentElo[id] = STARTING_ELO; });
-
+    const wantDoubles = type === 'doubles';
     const history = {};
-    Object.keys(state.players).forEach(id => { history[id] = []; });
 
-    const getIds = (val) => String(val || '').split(',').map(s => s.trim()).filter(Boolean);
+    for (const id of Object.keys(state.players)) {
+        history[id] = [];
+    }
 
-    const sorted = [...state.matches]
-        .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+    replayMatches(state.matches, Object.keys(state.players), ({ match, isDoubles, updated }) => {
+        if (isDoubles !== wantDoubles) return;
 
-    let matchIndex = 1;
+        const time = new Date(match.date ?? 0).getTime();
 
-    sorted.forEach(match => {
-        const { type: matchType, winnerId: rawWId, loserId: rawLId } = normaliseMatch(match);
-        const isDoubles = matchType.includes('doubles') || String(rawWId || '').includes(',');
-        if (type === 'singles' && isDoubles) return;
-        if (type === 'doubles' && !isDoubles) return;
-
-        if (type === 'singles') {
-            const wId = String(rawWId || '').trim();
-            const lId = String(rawLId || '').trim();
-            if (currentElo[wId] === undefined || currentElo[lId] === undefined) return;
-
-            const result = calculateSinglesMatch(currentElo[wId], currentElo[lId]);
-            currentElo[wId] = result.winnerElo;
-            currentElo[lId] = result.loserElo;
-
-            history[wId].push({ matchIndex, date: match.date, elo: result.winnerElo });
-            history[lId].push({ matchIndex, date: match.date, elo: result.loserElo });
-        } else {
-            const winners = getIds(rawWId);
-            const losers  = getIds(rawLId);
-            if (winners.some(id => currentElo[id] === undefined) ||
-                losers.some(id  => currentElo[id] === undefined)) return;
-
-            const { eloChange } = calculateDoublesMatch(
-                winners.map(id => currentElo[id]),
-                losers.map(id  => currentElo[id]),
-            );
-
-            winners.forEach(id => {
-                currentElo[id] = (currentElo[id] || STARTING_ELO) + eloChange;
-                history[id].push({ matchIndex, date: match.date, elo: currentElo[id] });
-            });
-            losers.forEach(id => {
-                currentElo[id] = (currentElo[id] || STARTING_ELO) - eloChange;
-                history[id].push({ matchIndex, date: match.date, elo: currentElo[id] });
+        for (const { id, elo } of updated) {
+            history[id].push({
+                x: Number.isNaN(time) ? 0 : time,
+                y: elo,
+                date: match.date,
             });
         }
-
-        matchIndex++;
     });
 
     return history;
+}
+
+// ── Gemeinsame Chart-Optionen ──────────────────────────────────────────────
+
+function baseOptions({ showLegend }) {
+    return {
+        responsive: true,
+        maintainAspectRatio: true,
+        animation: prefersReducedMotion() ? false : undefined,
+        interaction: { mode: 'nearest', intersect: false },
+        plugins: {
+            legend: showLegend
+                ? { position: 'bottom', labels: { usePointStyle: true, padding: 16 } }
+                : { display: false },
+            tooltip: {
+                callbacks: {
+                    title: (items) => formatDateTime(items[0]?.raw?.date),
+                    label: (item) => showLegend
+                        ? ` ${item.dataset.label}: ${item.raw.y} ELO`
+                        : ` ${item.raw.y} ELO`,
+                },
+            },
+        },
+        scales: {
+            x: {
+                type: 'linear',
+                title: { display: true, text: 'Datum' },
+                ticks: {
+                    maxTicksLimit: 6,
+                    autoSkip: true,
+                    callback: (value) => formatDate(value),
+                },
+            },
+            y: {
+                title: { display: true, text: 'ELO' },
+                suggestedMin: STARTING_ELO - 100,
+                suggestedMax: STARTING_ELO + 100,
+            },
+        },
+    };
+}
+
+function prefersReducedMotion() {
+    return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+}
+
+function datasetFor(label, points, index, { fill = false } = {}) {
+    const { color, dash } = styleFor(index);
+    return {
+        label,
+        data: points,
+        borderColor:      color,
+        backgroundColor:  color + '22',
+        borderWidth:      2,
+        borderDash:       dash,
+        pointRadius:      3,
+        pointHoverRadius: 6,
+        tension:          0.25,
+        fill,
+    };
+}
+
+/**
+ * Blendet die Leinwand aus und zeigt stattdessen eine Meldung.
+ * Ersetzt nicht das innerHTML des Containers — sonst wäre die Leinwand weg.
+ */
+function showEmptyMessage(canvas, text) {
+    let message = canvas.parentElement.querySelector('.chart-empty-msg');
+    if (!message) {
+        message = document.createElement('p');
+        message.className = 'chart-empty-msg';
+        canvas.parentElement.appendChild(message);
+    }
+    message.textContent = text;
+    canvas.style.display = 'none';
+}
+
+function hideEmptyMessage(canvas) {
+    canvas.style.display = '';
+    canvas.parentElement.querySelector('.chart-empty-msg')?.remove();
+}
+
+function destroy(instance) {
+    instance?.destroy();
+    return null;
 }
 
 // ── Chart rendern ──────────────────────────────────────────────────────────
@@ -85,194 +192,88 @@ let chartInstance = null;
 let profileChartInstance = null;
 
 /**
- * Renders a single-player ELO trend chart inside the profile modal.
+ * Zeichnet den ELO-Verlauf eines einzelnen Spielers im Profil-Modal.
  * @param {string} playerId
  * @param {'singles'|'doubles'} type
  */
-export function renderPlayerChart(playerId, type = 'singles') {
+export async function renderPlayerChart(playerId, type = 'singles') {
     const canvas = document.getElementById('profileChart');
     if (!canvas) return;
 
-    if (profileChartInstance) {
-        profileChartInstance.destroy();
-        profileChartInstance = null;
-    }
+    profileChartInstance = destroy(profileChartInstance);
 
-    const history = buildEloHistory(type);
-    const points  = history[playerId] || [];
+    const points = buildEloHistory(type)[playerId] ?? [];
 
     if (points.length === 0) {
-        let msg = canvas.parentElement.querySelector('.chart-empty-msg');
-        if (!msg) {
-            msg = document.createElement('p');
-            msg.className = 'chart-empty-msg';
-            msg.style.cssText = 'text-align:center;color:#999;padding:20px;margin:0';
-            canvas.parentElement.appendChild(msg);
-        }
-        msg.textContent = 'Noch keine Spiele in diesem Modus.';
-        canvas.style.display = 'none';
+        showEmptyMessage(canvas, 'Noch keine Spiele in diesem Modus.');
         return;
     }
 
-    canvas.style.display = '';
-    canvas.parentElement.querySelector('.chart-empty-msg')?.remove();
+    const Chart = await loadChartLib();
 
-    const color = '#c51216';
-    const data  = [
-        { x: 0, y: STARTING_ELO, date: null },
-        ...points.map(p => ({ x: p.matchIndex, y: p.elo, date: p.date })),
-    ];
+    // Zwischen dem await und hier kann das Modal geschlossen oder der Tab
+    // gewechselt worden sein.
+    if (!canvas.isConnected) return;
+    profileChartInstance = destroy(profileChartInstance);
+
+    hideEmptyMessage(canvas);
 
     profileChartInstance = new Chart(canvas, {
         type: 'line',
-        data: {
-            datasets: [{
-                label: 'ELO',
-                data,
-                borderColor:      color,
-                backgroundColor:  color + '22',
-                borderWidth:      2,
-                pointRadius:      4,
-                pointHoverRadius: 6,
-                tension:          0.3,
-                fill:             true,
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title(items) {
-                            const raw = items[0]?.raw;
-                            if (!raw?.date) return 'Start';
-                            const d = new Date(raw.date);
-                            return isNaN(d.getTime()) ? 'Start' :
-                                d.toLocaleDateString() + ' ' +
-                                d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        },
-                        label(item) { return ` ${item.raw.y} ELO`; },
-                    },
-                },
-            },
-            scales: {
-                x: {
-                    type: 'linear',
-                    title: { display: true, text: 'Match' },
-                    ticks: { stepSize: 1, precision: 0 },
-                },
-                y: {
-                    title: { display: true, text: 'ELO' },
-                    suggestedMin: STARTING_ELO - 100,
-                },
-            },
-        },
+        data: { datasets: [datasetFor('ELO', points, 0, { fill: true })] },
+        options: baseOptions({ showLegend: false }),
     });
 }
 
-export function renderEloChart(type = 'singles') {
+/**
+ * Zeichnet den ELO-Verlauf aller aktiven Spieler.
+ * @param {'singles'|'doubles'} type
+ */
+export async function renderEloChart(type = 'singles') {
     const canvas = document.getElementById('eloChart');
     if (!canvas) return;
 
     const history = buildEloHistory(type);
 
-    // Nur Spieler mit mindestens einem Match anzeigen
+    // Nur Spieler mit mindestens einem Spiel anzeigen, stärkste zuerst — so
+    // sind die standardmäßig sichtbaren Linien die interessanten.
     const activePlayers = Object.entries(state.players)
-        .filter(([id]) => history[id] && history[id].length > 0)
-        .sort((a, b) => a[1].name.localeCompare(b[1].name));
+        .filter(([id]) => history[id]?.length > 0)
+        .sort((a, b) => {
+            const last = (id) => history[id][history[id].length - 1].y;
+            return last(b[0]) - last(a[0]);
+        });
 
     if (activePlayers.length === 0) {
-        if (chartInstance) {
-            chartInstance.destroy();
-            chartInstance = null;
-        }
-        let msg = canvas.parentElement.querySelector('.chart-empty-msg');
-        if (!msg) {
-            msg = document.createElement('p');
-            msg.className = 'chart-empty-msg';
-            msg.style.cssText = 'text-align:center;color:#999;padding:40px;margin:0';
-            canvas.parentElement.appendChild(msg);
-        }
-        msg.textContent = 'Noch keine Matches eingetragen.';
-        canvas.style.display = 'none';
+        chartInstance = destroy(chartInstance);
+        showEmptyMessage(canvas, 'Noch keine Spiele eingetragen.');
         return;
     }
 
-    canvas.style.display = '';
-    canvas.parentElement.querySelector('.chart-empty-msg')?.remove();
+    const Chart = await loadChartLib();
+    if (!canvas.isConnected) return;
 
-    const datasets = activePlayers.map(([id, player], index) => {
-        const color = colorFor(index);
-        const points = history[id];
+    chartInstance = destroy(chartInstance);
+    hideEmptyMessage(canvas);
 
-        // Startpunkt bei ELO 1000 vor dem ersten Match des Spielers
-        const data = [
-            { x: 0, y: STARTING_ELO, date: null },
-            ...points.map(p => ({ x: p.matchIndex, y: p.elo, date: p.date })),
-        ];
+    const datasets = activePlayers.map(([id, player], index) => ({
+        ...datasetFor(player.name, history[id], index),
+        // Bei vielen Spielern würde die Legende den halben Bildschirm füllen.
+        // Die übrigen Linien bleiben über die Legende zuschaltbar.
+        hidden: index >= VISIBLE_BY_DEFAULT,
+    }));
 
-        return {
-            label:           player.name,
-            data,
-            borderColor:     color,
-            backgroundColor: color + '22',
-            borderWidth:     2,
-            pointRadius:     4,
-            pointHoverRadius: 6,
-            tension:         0.3,
-            fill:            false,
+    const options = baseOptions({ showLegend: true });
+    if (activePlayers.length > VISIBLE_BY_DEFAULT) {
+        options.plugins.legend.title = {
+            display: true,
+            text: `Top ${VISIBLE_BY_DEFAULT} sichtbar — weitere Spieler antippen`,
         };
-    });
-
-    if (chartInstance) {
-        chartInstance.destroy();
-        chartInstance = null;
     }
 
     chartInstance = new Chart(canvas, {
         type: 'line',
         data: { datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { usePointStyle: true, padding: 16 },
-                },
-                tooltip: {
-                    callbacks: {
-                        title(items) {
-                            const raw = items[0]?.raw;
-                            if (!raw?.date) return 'Start';
-                            const d = new Date(raw.date);
-                            return isNaN(d.getTime()) ? 'Start' :
-                                d.toLocaleDateString() + ' ' +
-                                d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        },
-                        label(item) {
-                            return ` ${item.dataset.label}: ${item.raw.y} ELO`;
-                        },
-                    },
-                },
-            },
-            scales: {
-                x: {
-                    type: 'linear',
-                    title: { display: true, text: 'Match' },
-                    ticks: { stepSize: 1, precision: 0 },
-                },
-                y: {
-                    title: { display: true, text: 'ELO' },
-                    suggestedMin: STARTING_ELO - 100,
-                },
-            },
-        },
+        options,
     });
 }

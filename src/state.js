@@ -1,150 +1,220 @@
-import { STARTING_ELO, calculateSinglesMatch, calculateDoublesMatch } from './elo.js';
+import { STARTING_ELO } from './elo.js';
+import { replayMatches } from './replay.js';
 
-// ── Match-Normalisierung ───────────────────────────────────────────────────
-
-/**
- * Normalises a raw match object, correcting the column-shift bug present in
- * data imported from old Google Sheets exports where winnerId held the type.
- * Returns { type, winnerId, loserId } with correct values.
- */
-export function normaliseMatch(match) {
-    const rawType     = String(match.type     || '').toLowerCase();
-    const rawWinnerId = String(match.winnerId || '').toLowerCase();
-
-    const columnShifted = rawWinnerId.includes('doubles') || rawWinnerId.includes('singles');
-    const type      = columnShifted ? rawWinnerId : rawType;
-    const winnerId  = columnShifted ? match.loserId    : match.winnerId;
-    const loserId   = columnShifted ? match.winnerName : match.loserId;
-
-    return { type, winnerId, loserId };
-}
+// Re-Export, damit bestehende Importe aus state.js weiter funktionieren.
+// Die Definition lebt in match.js — dort, wo sie hingehört.
+export {
+    normaliseMatch, parsePlayerIds, matchInvolves, isWinner,
+    compareMatches, sortMatchesAsc, sortMatchesDesc,
+    SINGLES, DOUBLES,
+} from './match.js';
 
 // ================= APP-ZUSTAND =================
 
 export const state = {
     players:         {},
     matches:         [],
-    selectedPlayers: [],
+    selectedPlayers: [],   // Doppel: Klickreihenfolge, Index 0-1 = Team 1
+    selectedSingles: [],   // Einzel: Klickreihenfolge, Index 0 = Gewinner
     currentGameMode: 'singles',
     isDataLoading:   false,
+    lastSyncedAt:    null, // ISO-Zeitstempel des letzten erfolgreichen Server-Abrufs
 };
 
 // ================= PERSISTENZ =================
+//
+// Die Schlüssel werden pro Instanz benannt: zwei White-Label-Instanzen unter
+// user.github.io/clubA/ und /clubB/ teilen sich sonst denselben localStorage
+// und überschreiben sich gegenseitig.
 
-export function persistPlayers() {
-    localStorage.setItem('eloPlayers', JSON.stringify(state.players));
+let storagePrefix  = 'elo';
+let storageEnabled = true;
+let storageWarned  = false;
+
+const LEGACY_KEYS = { players: 'eloPlayers', matches: 'eloMatches' };
+
+/**
+ * @param {{ namespace?: string, enabled?: boolean }} options
+ *   namespace — beliebiger Instanz-Schlüssel, üblicherweise die Supabase-URL
+ *   enabled   — im Demo-Modus false, damit Beispieldaten den echten Cache
+ *               nicht überschreiben
+ */
+export function initStorage({ namespace = '', enabled = true } = {}) {
+    storagePrefix  = namespace ? `elo:${slug(namespace)}` : 'elo';
+    storageEnabled = enabled;
+    storageWarned  = false;
 }
 
+/** Macht aus einer Supabase-URL einen lesbaren, eindeutigen Schlüsselteil. */
+function slug(value) {
+    return String(value)
+        .replace(/^https?:\/\//, '')
+        .replace(/[^a-z0-9]+/gi, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase()
+        .slice(0, 60);
+}
+
+function key(name) {
+    return `${storagePrefix}:${name}`;
+}
+
+/**
+ * Schreibt in den localStorage und meldet Misserfolg, statt zu werfen.
+ * setItem wirft real: Safari-Privatmodus, blockierter Storage, volle Quote.
+ * @returns {boolean} true wenn geschrieben wurde
+ */
+function safeSet(name, value) {
+    if (!storageEnabled) return false;
+    try {
+        localStorage.setItem(key(name), JSON.stringify(value));
+        return true;
+    } catch {
+        if (!storageWarned) {
+            storageWarned = true;
+            console.warn('[Storage] Offline-Zwischenspeicher nicht verfügbar.');
+        }
+        return false;
+    }
+}
+
+function safeGet(name, legacyName) {
+    let raw = null;
+    try {
+        raw = localStorage.getItem(key(name));
+        // Einmalige Übernahme des alten, nicht benannten Schlüssels.
+        if (raw === null && legacyName) raw = localStorage.getItem(legacyName);
+    } catch {
+        return undefined;
+    }
+
+    if (raw === null) return undefined;
+
+    try {
+        return JSON.parse(raw);
+    } catch {
+        try {
+            localStorage.removeItem(key(name));
+            if (legacyName) localStorage.removeItem(legacyName);
+        } catch { /* nicht kritisch */ }
+        return undefined;
+    }
+}
+
+/** @returns {boolean} true wenn der Zwischenspeicher verfügbar ist */
+export function persistPlayers() {
+    return safeSet('players', state.players);
+}
+
+/** @returns {boolean} true wenn der Zwischenspeicher verfügbar ist */
 export function persistMatches() {
-    localStorage.setItem('eloMatches', JSON.stringify(state.matches));
+    const ok = safeSet('matches', state.matches);
+    safeSet('syncedAt', state.lastSyncedAt);
+    return ok;
 }
 
 export function loadLocalPlayers() {
-    const raw = localStorage.getItem('eloPlayers');
-    if (!raw) return false;
-    try {
-        state.players = JSON.parse(raw);
-        return true;
-    } catch {
-        localStorage.removeItem('eloPlayers');
-        return false;
-    }
+    const players = safeGet('players', LEGACY_KEYS.players);
+    if (!players || typeof players !== 'object') return false;
+    state.players = players;
+    return true;
 }
 
 export function loadLocalMatches() {
-    const raw = localStorage.getItem('eloMatches');
-    if (!raw) return false;
-    try {
-        state.matches = JSON.parse(raw);
-        return true;
-    } catch {
-        localStorage.removeItem('eloMatches');
-        return false;
-    }
+    const matches = safeGet('matches', LEGACY_KEYS.matches);
+    if (!Array.isArray(matches)) return false;
+
+    state.matches      = matches;
+    state.lastSyncedAt = safeGet('syncedAt') ?? null;
+    return true;
 }
 
 // ================= STATISTIK-NEUBERECHNUNG =================
 
 /**
- * Setzt alle Spieler-Statistiken auf Startwerte zurück und
- * berechnet sie aus der Match-History neu (chronologisch).
- * Wird nach jedem Laden vom Server aufgerufen.
- */
-/**
+ * Setzt alle Spieler-Statistiken auf Startwerte zurück und berechnet sie aus
+ * der Match-History neu (chronologisch). Die Historie ist die Wahrheitsquelle,
+ * nicht die gespeicherten ELO-Werte.
+ *
+ * Schreibt nebenbei die tatsächlich berechnete `eloChange` in jedes Match
+ * zurück. Damit stimmen Spielverlauf und Rangliste auch für importierte
+ * Altdaten überein, in denen der Wert erfunden oder gerundet war.
+ *
+ * Persistiert bewusst NICHT selbst — das entscheidet der Aufrufer, damit ein
+ * Kaltstart nicht mehrfach synchron in den localStorage schreibt.
+ *
  * @returns {number} Anzahl der übersprungenen Matches (unbekannte Spieler-IDs)
  */
 export function recalculateStatsFromHistory() {
-    Object.keys(state.players).forEach(id => {
-        state.players[id].elo            = STARTING_ELO;
-        state.players[id].matches        = 0;
-        state.players[id].wins           = 0;
-        state.players[id].losses         = 0;
-        state.players[id].doublesElo     = STARTING_ELO;
-        state.players[id].doublesMatches = 0;
-        state.players[id].doublesWins    = 0;
-        state.players[id].doublesLosses  = 0;
-    });
+    for (const player of Object.values(state.players)) {
+        player.elo            = STARTING_ELO;
+        player.matches        = 0;
+        player.wins           = 0;
+        player.losses         = 0;
+        player.doublesElo     = STARTING_ELO;
+        player.doublesMatches = 0;
+        player.doublesWins    = 0;
+        player.doublesLosses  = 0;
+    }
 
-    const sorted = [...state.matches].sort((a, b) =>
-        new Date(a.date || 0) - new Date(b.date || 0)
+    const { skipped } = replayMatches(
+        state.matches,
+        Object.keys(state.players),
+        ({ match, isDoubles, eloChange, updated }) => {
+            match.eloChange = eloChange;
+
+            for (const { id, elo, won } of updated) {
+                const player = state.players[id];
+
+                if (isDoubles) {
+                    player.doublesElo     = elo;
+                    player.doublesMatches += 1;
+                    if (won) player.doublesWins += 1;
+                    else     player.doublesLosses += 1;
+                } else {
+                    player.elo      = elo;
+                    player.matches += 1;
+                    if (won) player.wins += 1;
+                    else     player.losses += 1;
+                }
+            }
+        },
     );
 
-    const getIds = (val) => {
-        const s = String(val || '').trim();
-        return s.includes(',') ? s.split(',').map(x => x.trim()) : [s];
-    };
+    if (skipped > 0) {
+        console.warn(`[ELO] ${skipped} Spiel(e) übersprungen – unbekannte oder doppelte Spieler-IDs.`);
+    }
 
-    let skipped = 0;
-
-    sorted.forEach(match => {
-        const { type: actualType, winnerId: wRaw, loserId: lRaw } = normaliseMatch(match);
-        const isDoubles = actualType.includes('doubles') || String(wRaw || '').includes(',');
-
-        if (!isDoubles) {
-            const winnerId = String(wRaw || '').trim();
-            const loserId  = String(lRaw || '').trim();
-            const winner   = state.players[winnerId];
-            const loser    = state.players[loserId];
-            if (!winner || !loser) {
-                skipped++;
-                console.warn(`[ELO] Match ${match.id} übersprungen – unbekannte Spieler-ID (${winnerId}, ${loserId})`);
-                return;
-            }
-
-            const result       = calculateSinglesMatch(winner.elo, loser.elo);
-            winner.elo         = result.winnerElo;
-            winner.matches     = (winner.matches || 0) + 1;
-            winner.wins        = (winner.wins    || 0) + 1;
-            loser.elo          = result.loserElo;
-            loser.matches      = (loser.matches  || 0) + 1;
-            loser.losses       = (loser.losses   || 0) + 1;
-        } else {
-            const winners = getIds(wRaw);
-            const losers  = getIds(lRaw);
-            if (winners.some(id => !state.players[id]) || losers.some(id => !state.players[id])) {
-                skipped++;
-                console.warn(`[ELO] Match ${match.id} übersprungen – unbekannte Spieler-ID`);
-                return;
-            }
-
-            const { eloChange } = calculateDoublesMatch(
-                winners.map(id => state.players[id].doublesElo),
-                losers.map(id =>  state.players[id].doublesElo),
-            );
-
-            winners.forEach(id => {
-                state.players[id].doublesElo     = (state.players[id].doublesElo     || STARTING_ELO) + eloChange;
-                state.players[id].doublesMatches = (state.players[id].doublesMatches || 0) + 1;
-                state.players[id].doublesWins    = (state.players[id].doublesWins    || 0) + 1;
-            });
-            losers.forEach(id => {
-                state.players[id].doublesElo     = (state.players[id].doublesElo     || STARTING_ELO) - eloChange;
-                state.players[id].doublesMatches = (state.players[id].doublesMatches || 0) + 1;
-                state.players[id].doublesLosses  = (state.players[id].doublesLosses  || 0) + 1;
-            });
-        }
-    });
-
-    persistPlayers();
     return skipped;
+}
+
+/**
+ * Fügt ein Match hinzu und rechnet die Statistiken vollständig neu.
+ *
+ * Der Replay ist die Wahrheitsquelle — die Werte optimistisch im Aufrufer zu
+ * berechnen, ließ die players-Tabelle über die Zeit von der Historie
+ * abdriften, weil bei jedem Schreibvorgang In-Memory-Werte statt
+ * nachgerechneter Werte hochgeladen wurden.
+ *
+ * @returns {number} übersprungene Matches
+ */
+export function applyMatch(match) {
+    state.matches.push(match);
+    return recalculateStatsFromHistory();
+}
+
+/**
+ * Nimmt ein zuvor per applyMatch hinzugefügtes Match wieder zurück.
+ */
+export function revertMatch(match) {
+    state.matches = state.matches.filter(m => m !== match);
+    return recalculateStatsFromHistory();
+}
+
+/**
+ * Entfernt ein Match anhand seiner ID und rechnet neu.
+ */
+export function removeMatchById(id) {
+    state.matches = state.matches.filter(m => m.id !== id);
+    return recalculateStatsFromHistory();
 }
