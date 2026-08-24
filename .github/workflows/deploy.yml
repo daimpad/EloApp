@@ -48,16 +48,35 @@ jobs:
       # Vandalismus-Bremse, kein Geheimnis.
       - name: config.js aus Repository-Secrets erzeugen
         env:
-          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          APP_SECRET:        ${{ secrets.APP_SECRET }}
-          BRANDING_JSON:     ${{ secrets.BRANDING_JSON }}
+          # Unter Settings → Secrets and variables → Actions gibt es zwei
+          # Reiter. Werte im Reiter "Variables" landen in vars.*, nicht in
+          # secrets.* — eine leicht zu übersehende Verwechslung, die dazu
+          # führt, dass hier alles leer ankommt. Beide Quellen werden
+          # akzeptiert, secrets hat Vorrang.
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL      || vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY }}
+          APP_SECRET:        ${{ secrets.APP_SECRET        || vars.APP_SECRET }}
+          BRANDING_JSON:     ${{ secrets.BRANDING_JSON     || vars.BRANDING_JSON }}
         run: |
+          # Nur "gesetzt"/"fehlt" ausgeben — nie die Werte selbst.
+          state() { [ -n "$1" ] && echo "gesetzt" || echo "FEHLT"; }
+          echo "Gefundene Konfiguration:"
+          echo "  SUPABASE_URL      $(state "$SUPABASE_URL")"
+          echo "  SUPABASE_ANON_KEY $(state "$SUPABASE_ANON_KEY")"
+          echo "  APP_SECRET        $(state "$APP_SECRET")     (optional)"
+          echo "  BRANDING_JSON     $(state "$BRANDING_JSON")     (optional)"
+
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "::error::SUPABASE_URL und SUPABASE_ANON_KEY müssen als Repository-Secrets gesetzt sein."
-            echo "::error::Settings → Secrets and variables → Actions → New repository secret"
+            echo "::error::SUPABASE_URL und SUPABASE_ANON_KEY fehlen."
+            echo "::error::Settings → Secrets and variables → Actions. Dort den Reiter *Secrets* wählen (nicht *Variables*) und die Namen exakt so schreiben."
+            echo "::error::Bereits gesetzte Werte im Reiter Variables werden ebenfalls akzeptiert — kommt diese Meldung trotzdem, stimmt der Name nicht."
             exit 1
           fi
+
+          case "$SUPABASE_URL" in
+            https://*.supabase.co) ;;
+            *) echo "::warning::SUPABASE_URL sieht ungewöhnlich aus — erwartet wird https://PROJEKT.supabase.co" ;;
+          esac
 
           BRANDING="${BRANDING_JSON:-{\}}"
 
